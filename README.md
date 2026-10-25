@@ -16,6 +16,7 @@ docker compose up -d --wait
 cp .env.example .env
 uv run devradar-migrate
 uv run devradar-discover
+uv run devradar-ingest
 uv run pytest
 uv run uvicorn devradar.api.main:app --reload
 ```
@@ -33,6 +34,14 @@ mkdir .venv.nosync && ln -s .venv.nosync .venv
 [vanshb03](https://github.com/vanshb03/Summer2027-Internships)), resolves short links, and turns
 each posting URL into a pollable job board (Greenhouse, Lever, Ashby or Workday). The lists are
 used to find *which boards exist*; postings themselves are fetched from the boards directly.
+
+## Ingestion
+
+`uv run devradar-ingest` polls every enabled board with a supported adapter (currently Greenhouse).
+Each run lists all postings per board, writes only new or changed ones, and fetches descriptions
+only for internships that are new or edited. Boards are fetched concurrently (16 requests in flight)
+with retries on timeouts, 429s and 5xx; a failing board is recorded in `board_fetches` without
+affecting the others. A posting missing from two consecutive successful fetches is marked closed.
 
 ## Migrations
 
