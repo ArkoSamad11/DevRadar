@@ -25,3 +25,8 @@ def empty_db():
 def migrated_db(empty_db):
     migrate(empty_db)
     return empty_db
+
+
+@pytest.fixture
+def anyio_backend():
+    return "asyncio"
