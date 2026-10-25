@@ -43,6 +43,15 @@ only for internships that are new or edited. Boards are fetched concurrently (16
 with retries on timeouts, 429s and 5xx; a failing board is recorded in `board_fetches` without
 affecting the others. A posting missing from two consecutive successful fetches is marked closed.
 
+## Classification
+
+Postings are tagged as internships and with role categories (software, ML/AI, data science,
+systems, security, quant, operations research, math) from their titles, plus descriptions for
+operations research and math. `scripts/evaluate_classifier.py` scores the rules against 200
+hand-labeled real titles (`tests/fixtures/classifier_sample.csv`), tuned on one half and measured on
+the other. After changing the rules, `uv run devradar-reclassify` re-applies them to stored postings
+without refetching anything.
+
 ## Migrations
 
 Schema changes are plain SQL files in `src/devradar/migrations/`, applied in filename order by
