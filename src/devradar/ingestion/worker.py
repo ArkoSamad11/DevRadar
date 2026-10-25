@@ -14,6 +14,7 @@ from devradar.config import settings
 from devradar.discovery.run import USER_AGENT
 from devradar.ingestion.ashby import AshbyAdapter
 from devradar.ingestion.greenhouse import GreenhouseAdapter
+from devradar.ingestion.lever import LeverAdapter
 from devradar.ingestion.models import Adapter, Board, MalformedResponse
 from devradar.ingestion.store import (
     DescriptionTask,
@@ -25,6 +26,7 @@ from devradar.ingestion.store import (
 ADAPTERS: dict[str, Adapter] = {
     "greenhouse": GreenhouseAdapter(),
     "ashby": AshbyAdapter(),
+    "lever": LeverAdapter(),
 }
 RETRYABLE_STATUSES = {429, 500, 502, 503, 504}
 DISABLE_AFTER_FAILURES = 5
