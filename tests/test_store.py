@@ -92,6 +92,16 @@ async def test_rerun_with_same_postings_writes_nothing_new(migrated_db, board):
     assert query(migrated_db, "SELECT count(*) FROM job_sources") == [(2,)]
 
 
+async def test_rerun_does_not_rewrite_unchanged_rows(migrated_db, board):
+    await store(migrated_db, board, [posting("1"), posting("2")])
+    versions = (
+        "SELECT xmin::text FROM job_sources UNION ALL SELECT xmin::text FROM jobs"
+    )
+    before = query(migrated_db, versions)
+    await store(migrated_db, board, [posting("1"), posting("2")])
+    assert query(migrated_db, versions) == before
+
+
 async def test_internship_description_is_requested_until_stored(migrated_db, board):
     [task] = (await store(migrated_db, board, [posting("1")])).needs_description
     assert len((await store(migrated_db, board, [posting("1")])).needs_description) == 1

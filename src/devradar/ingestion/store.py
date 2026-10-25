@@ -71,8 +71,8 @@ async def store_postings(
 
         await conn.execute(
             """
-            UPDATE job_sources SET last_seen_at = now(), missed_fetches = 0
-            WHERE source = %s AND external_id = ANY(%s)
+            UPDATE job_sources SET missed_fetches = 0
+            WHERE source = %s AND external_id = ANY(%s) AND missed_fetches > 0
             """,
             (board.ats, external_ids),
         )
