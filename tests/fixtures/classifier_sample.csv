@@ -1,0 +1,201 @@
+id,split,title,is_internship,categories
+1,tune,Strategic Execution Intern,yes,
+2,holdout,Product Design Intern for AI and Human Agents Platform,yes,
+3,tune,Data Engineering Intern,yes,data_science
+4,holdout,Intern Technology Consultant - Data & AI,yes,
+5,tune,Cloud Software Engineer Co-op,yes,software;systems
+6,holdout,Applied AI Intern (Non-Silicon),yes,ml_ai
+7,tune,Environmental Test Engineer Intern (Winter 2027),yes,
+8,holdout,CGI Artist Intern,yes,
+9,tune,Water Infrastructure Engineering Intern,yes,
+10,holdout,"Frisco, Transportation, Internship",yes,
+11,tune,AI Automation Co-op (Spring 2027),yes,ml_ai
+12,holdout,Site Project Management Office Intern,yes,
+13,tune,Manufacturing Engineering Intern (Summer 2027),yes,
+14,holdout,Strategy and Product,no,
+15,tune,Commercial Operations Intern [Winter 2027],yes,
+16,holdout,Data Engineering Intern (January 2027),yes,data_science
+17,tune,Summer 2027 AI Applied Research Internship,yes,ml_ai
+18,holdout,ATE Engineer Intern,yes,
+19,tune,Simulation Software Engineering Intern - Summer 2027,yes,software
+20,holdout,Software Engineer Intern 2027,yes,software
+21,tune,Financial Reporting Accounting Intern - Summer 2027,yes,
+22,holdout,Digital Design Engineering Intern,yes,
+23,tune,"SAN ANTONIO - Public Works, Internship",yes,
+24,holdout,Cybersecurity Presales Intern - GPSU/Heartland (Tulsa),yes,security
+25,tune,Supply Chain Analyst Intern,yes,
+26,holdout,ACLU-NBLSA Southern Legal Internship Program 2027,yes,
+27,tune,"WACO - Public Works, Internship",yes,
+28,holdout,Growth Marketing Intern (Summer 2027),yes,
+29,tune,Electrical Engineering Intern - Powertrain,yes,
+30,holdout,HR & Recruiting Intern,yes,
+31,tune,Robotics Software Engineer Intern,yes,software
+32,holdout,Production Technician - SkillBridge,yes,
+33,tune,XDev Props Intern- Undergraduate,yes,
+34,holdout,Product Applications Engineer Intern (Leo),yes,
+35,tune,"Software Developer Intern, MyAdmin (Winter/January 2027, 8+ Months)",yes,software
+36,holdout,Software Engineering Intern – Summer 2027,yes,software
+37,tune,Business Development Intern Spring 2027,yes,
+38,holdout,Avionics Engineering Intern Summer 2027,yes,
+39,tune,Thermal Engineering Intern (Summer 2027),yes,
+40,holdout,"Spring 2027 Legal Intern, Human Rights Program",yes,
+41,tune,Intern Lending Operations,yes,
+42,holdout,Compensation and Benefits Analyst Intern,yes,
+43,tune,Legal Intern,yes,
+44,holdout,Special Projects Intern [Winter 2027],yes,
+45,tune,DevOps Engineer Intern - Summer 2027,yes,systems
+46,holdout,"Guidance, Navigation & Controls (GNC) Internship - Spring 2027",yes,
+47,tune,"DALLAS - Transportation, Internship",yes,
+48,holdout,"Spring 2027 Legal Intern, LGBTQ & HIV Project",yes,
+49,tune,Flagship Pioneering: AI Automation Engineering Co-Op,yes,ml_ai
+50,holdout,Production Quality Intern (Summer 2027),yes,
+51,tune,"Product Manager, MBA Intern",yes,
+52,holdout,Propulsion Engineer Intern (Summer 2027),yes,
+53,tune,2027 Firmware Engineer Intern,yes,systems
+54,holdout,"FORT WORTH - Construction Management, Internship",yes,
+55,tune,Physical Design Engineer Intern (DM),yes,
+56,holdout,Software Development Co-op (Jan '27 Start),yes,software
+57,tune,"ROUND ROCK - Environmental Services, Internship",yes,
+58,holdout,SkillBridge Intern - Platform Engineer,yes,systems
+59,tune,"Research Intern, Model Shaping (Winter 2027)",yes,ml_ai
+60,holdout,Benefits Advocacy Intern,yes,
+61,tune,Electrical Integration Intern - Avionics (Winter 2027),yes,
+62,holdout,2027 Business Operations Engineer Intern,yes,
+63,tune,Aerodynamics & Analysis Engineering Internship - Summer 2027,yes,
+64,holdout,2027 Quality & Test Engineer Intern,yes,
+65,tune,AI Technology PhD Research Internship,yes,ml_ai
+66,holdout,Finance Intern (Accounting),yes,
+67,tune,"Spring 2027 Legal Intern, Capital Punishment Project",yes,
+68,holdout,"Spring 2027 Legal Intern, State Supreme Court Initiative",yes,
+69,tune,User Research Intern (Tools)- Master's,yes,
+70,holdout,Software Engineering Intern (Full Stack) – Summer 2027,yes,software
+71,tune,Intern Engineering,yes,
+72,holdout,Electrical Engineering Summer Interns,yes,
+73,tune,Machine Learning Internship Summer 2027,yes,ml_ai
+74,holdout,LINK 2027: Software Development Intensive Program,yes,software
+75,tune,"Sourcing Intern, Supply Chain (Summer 2027)",yes,
+76,holdout,Summer Intern 2027 - Quantitative Trader,yes,quant
+77,tune,Northeastern University Software Engineer - Application Development Co-op,yes,software
+78,holdout,Software Engineering Intern - 2027 Winter Term,yes,software
+79,tune,"Electrical Engineer Intern, Implant Embedded Systems",yes,systems
+80,holdout,Platform Applications Engineer Intern/Co-op (Tools Development Engineer – COSMOS Platform Software),yes,software
+81,tune,Data Center Engineer Intern - Summer 2027,yes,systems
+82,holdout,Digital Marketing Intern - Technical AI & Automation,yes,
+83,tune,Neuroengineer Intern,yes,
+84,holdout,"Summer 2027 Undergraduate Intern, National Prison Project",yes,
+85,tune,Propulsion Engineering Internship - Spring 2027,yes,
+86,holdout,Export Compliance Intern Spring 2027,yes,
+87,tune,"Trading Analyst Intern, Rates",yes,quant
+88,holdout,"Summer 2027 Legal Intern, Disability Rights Program- Veterans' Rights",yes,
+89,tune,Finance Operations Intern - Summer 2027,yes,
+90,holdout,Finance Associate,no,
+91,tune,Spring 2027 Data Science Intern,yes,data_science
+92,holdout,(SUMMER) Research Analyst Intern,yes,
+93,tune,Business Development Intern,yes,
+94,holdout,Midstream Services Intern,yes,
+95,tune,Marketing Intern | Spring 2027,yes,
+96,holdout,"FORT WORTH - Public Works, Internship",yes,
+97,tune,"AI Software Intern - Training, Models, Kernel/Ops (Poland - Summer 2027)",yes,ml_ai;software;systems
+98,holdout,Manufacturing Engineering Internship - Spring 2027,yes,
+99,tune,"Spring 2027: Product Design Engineering Co-op, Ninja (January to June)",yes,
+100,holdout,Solutions Analyst Intern - Summer 2027,yes,
+101,tune,Mechanical Engineering Intern (Spring 2027),yes,
+102,holdout,2027 PhD Quantitative Research Intern,yes,quant
+103,tune,Asset Management Intern (Summer 2027),yes,
+104,holdout,SkillBridge Intern - Mission Manager,yes,
+105,tune,"Software Engineering Intern, Device Experiences (Summer 2027)",yes,software
+106,holdout,Aerospace Algorithms Engineer Graduate Co-op,yes,
+107,tune,Virginia Tech College Fair - Internship,yes,
+108,holdout,Software Engineer (Machine Learning) Intern (Summer 2027),yes,ml_ai;software
+109,tune,Winter 2027 Research Engineer Co-op,yes,
+110,holdout,Field Operations Executive,no,
+111,tune,"Computer Vision Intern, Fall/Winter 2026",yes,ml_ai
+112,holdout,(SPRING) Data Scientist Intern - PhD,yes,data_science
+113,tune,Compliance Intern,yes,
+114,holdout,"Intern, Product Media Solutions, Italy",yes,
+115,tune,Intern - Business Analyst,yes,
+116,holdout,Finance & AI Automation Intern,yes,
+117,tune,Internships at CMT,yes,
+118,holdout,Electrical Engineer Summer Intern,yes,
+119,tune,Pioneering Intelligence: Data Science Co-Op (Embedded Science Team),yes,data_science
+120,holdout,2027 Intern & New Graduate Pipeline Opportunity,yes,
+121,tune,Technology Intern - Hong Kong - 2027,yes,
+122,holdout,Machine Learning Researcher,no,ml_ai
+123,tune,Data & Analytics Engineering Intern - Summer 2027,yes,data_science
+124,holdout,"Customer Marketing Intern (Winter/January 2027, 8 Months)",yes,
+125,tune,Spring 2027 AI/ML Engineering Intern,yes,ml_ai
+126,holdout,AI Software Intern (USA),yes,ml_ai;software
+127,tune,2027 Business Operations Intern,yes,
+128,holdout,Mechanical Engineer Intern (Summer 2027),yes,
+129,tune,Account Management Intern - Summer 2027,yes,
+130,holdout,Audit Co-Op Student,yes,
+131,tune,Systems Research Engineer Intern - GPU Programming (Winter 2027),yes,systems
+132,holdout,AI Research Intern – Predictive World Model,yes,ml_ai
+133,tune,AI & Management Consulting Intern (Value Engineering - UKI Market),yes,
+134,holdout,Technical Writer Intern (Summer 2027),yes,
+135,tune,Field Marketing Intern - Summer 2027,yes,
+136,holdout,Software Developer Intern - Industrial Placement,yes,software
+137,tune,Business Analyst Intern,yes,
+138,holdout,Human Resources Intern,yes,
+139,tune,"HOUSTON - Survey, Internship",yes,
+140,holdout,"Software Engineering Intern, Backend",yes,software
+141,tune,International Business Development Intern (Summer 2027),yes,
+142,holdout,Spring 2027 Property Operations Co-op,yes,
+143,tune,Developer Internship,yes,software
+144,holdout,"Intern, RISC-V CPU (USA)",yes,
+145,tune,Super Day - Data Engineering Internship,yes,data_science
+146,holdout,Data Scientist Graduate Co-op,yes,data_science
+147,tune,Recruiting Intern - AI & Automation,yes,
+148,holdout,2027 Electrical Engineer Intern,yes,
+149,tune,Propulsion Design Intern Summer 2027,yes,
+150,holdout,(SUMMER) Data Scientist Intern - PhD,yes,data_science
+151,tune,AI Quality Assurance Intern,yes,ml_ai
+152,holdout,2028 Point72 Academy Investment Analyst Summer Internship Program - US,yes,
+153,tune,"Quantitative Research Intern (PhD, Summer 2027)",yes,quant
+154,holdout,Software Defined Radio Hardware Intern (Summer 2027),yes,
+155,tune,Software Engineer Intern (Summer 2027),yes,software
+156,holdout,"Pioneering Medicines: Analytical Development, Technical Operations Co-Op",yes,
+157,tune,"Analytics Internship, Summer 2027",yes,data_science
+158,holdout,Trading Intern - Summer 2027 (DV Commodities),yes,quant
+159,tune,"Summer 2027 Legal Intern, Criminal Law Reform Project",yes,
+160,holdout,Test Engineering Intern Summer 2027,yes,
+161,tune,2027 Internship – Software Engineer,yes,software
+162,holdout,AI & Management Consulting Intern (Value Engineering - DACH Market),yes,
+163,tune,Inside Sales Internship,yes,
+164,holdout,Intern Sales,yes,
+165,tune,Technical Project Management Intern (Summer 2027),yes,
+166,holdout,"Content Marketing Coordinator Intern (Winter/January 2027, 8 Months)",yes,
+167,tune,Talent Growth and Inclusion Intern- Summer 2027,yes,
+168,holdout,Intern - QA,yes,
+169,tune,Demand Planning Intern,yes,
+170,holdout,QC Stability Coordinator (Intern),yes,
+171,tune,Intern Events & Education,yes,
+172,holdout,2027 Navigation Summer Internship,yes,
+173,tune,"Spring 2027 Legal Intern, Criminal Law Reform Project",yes,
+174,holdout,Accounting Internship - Summer 2027,yes,
+175,tune,Winter 2027 Test & Evaluation Engineer Co-op,yes,
+176,holdout,"Summer 2027 Legal Intern, Disability Rights Program",yes,
+177,tune,Apprentice BI Data Analyst,yes,data_science
+178,holdout,Operations Accounting Intern,yes,
+179,tune,IT Operations Engineer,no,
+180,holdout,Software Engineering Internship (Summer 2027),yes,software
+181,tune,Business Development Intern Summer 2027,yes,
+182,holdout,Intern - Design,yes,
+183,tune,Hardware Support Internship - Summer 2027,yes,
+184,holdout,Internship - Scientific Software and Compilation,yes,software;systems
+185,tune,Summer 2027 Investment Operations Intern,yes,
+186,holdout,Trading Desk Operations Engineer,no,
+187,tune,Harness Design Engineer Intern (Summer 2027),yes,
+188,holdout,Pioneering Medicines: Biologic Formulations Technical Operations Co-Op,yes,
+189,tune,Electrical Validation Engineer Intern,yes,
+190,holdout,Commodities Trading Intern,yes,quant
+191,tune,2027 Fund Data Reporting and Analytics Summer Intern,yes,data_science
+192,holdout,Terrana: Bioinformatics Co-Op: Computational Biology & Data Science,yes,data_science
+193,tune,Indirect Procurement Intern Spring 2027,yes,
+194,holdout,Intern Leasing Specialist,yes,
+195,tune,AI & Automation Engineering Intern - Summer 2027,yes,ml_ai
+196,holdout,Quant Developer Intern - Hong Kong 2027,yes,quant
+197,tune,Quantitative Trader Intern - Summer 2027,yes,quant
+198,holdout,Data & Analytics Co-op,yes,data_science
+199,tune,Fraud Operations Intern,yes,
+200,holdout,Municipal Surveillance General Obligation Sector Summer & Academic Year Intern - 2027,yes,
