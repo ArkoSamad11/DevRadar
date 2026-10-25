@@ -1,6 +1,7 @@
 __pycache__/
 *.py[cod]
-.venv/
+.venv
+.venv.nosync/
 .pytest_cache/
 .ruff_cache/
 .coverage
