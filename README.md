@@ -12,4 +12,14 @@ Requires [uv](https://docs.astral.sh/uv/) and Docker.
 
 ```bash
 uv sync
+docker compose up -d --wait
+cp .env.example .env
+uv run pytest
+uv run uvicorn devradar.api.main:app --reload
+```
+
+On an iCloud-synced folder (e.g. Desktop), keep the virtualenv out of sync before `uv sync`:
+
+```bash
+mkdir .venv.nosync && ln -s .venv.nosync .venv
 ```
