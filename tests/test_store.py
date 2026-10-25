@@ -8,7 +8,11 @@ pytestmark = pytest.mark.anyio
 
 
 def posting(
-    external_id, title="Software Engineer Intern", locations=("New York, NY",), **raw
+    external_id,
+    title="Software Engineer Intern",
+    locations=("New York, NY",),
+    description=None,
+    **raw,
 ):
     return Posting(
         source="greenhouse",
@@ -19,6 +23,7 @@ def posting(
         posted_at=None,
         employment_type=None,
         raw={"id": external_id, "title": title, **raw},
+        description=description,
     )
 
 
@@ -169,3 +174,34 @@ async def test_failure_midway_rolls_back_the_whole_board(migrated_db, board):
         )
     assert query(migrated_db, "SELECT count(*) FROM jobs") == [(0,)]
     assert query(migrated_db, "SELECT count(*) FROM job_sources") == [(0,)]
+
+
+async def test_inline_descriptions_are_stored_for_internships_only(migrated_db, board):
+    result = await store(
+        migrated_db,
+        board,
+        [
+            posting("1", description="Optimize routes with integer programming."),
+            posting("2", title="Senior Engineer", description="Lead a team."),
+        ],
+    )
+    assert (result.inline_descriptions, result.needs_description) == (1, [])
+    assert query(
+        migrated_db, "SELECT posting_key, description FROM jobs ORDER BY id"
+    ) == [
+        ("greenhouse:1", "Optimize routes with integer programming."),
+        ("greenhouse:2", None),
+    ]
+    assert query(
+        migrated_db,
+        "SELECT c.slug FROM job_categories jc JOIN categories c ON c.id = jc.category_id ORDER BY 1",
+    ) == [("operations_research",), ("software",)]
+
+
+async def test_edited_inline_description_counts_as_a_change(migrated_db, board):
+    await store(migrated_db, board, [posting("1", description="v1")])
+    unchanged = await store(migrated_db, board, [posting("1", description="v1")])
+    edited = await store(migrated_db, board, [posting("1", description="v2")])
+    assert (unchanged.unchanged, unchanged.inline_descriptions) == (1, 0)
+    assert (edited.updated, edited.inline_descriptions) == (1, 1)
+    assert query(migrated_db, "SELECT description FROM jobs") == [("v2",)]

@@ -24,6 +24,7 @@ class StoreResult:
     unchanged: int = 0
     closed: int = 0
     reopened: int = 0
+    inline_descriptions: int = 0
     needs_description: list[DescriptionTask] = field(default_factory=list)
 
 
@@ -65,9 +66,12 @@ async def store_postings(
             seen_job_ids.append(job_id)
 
             if internship and (changed or not existing.has_description):
-                result.needs_description.append(
-                    DescriptionTask(job_id, posting.external_id, posting.title)
-                )
+                task = DescriptionTask(job_id, posting.external_id, posting.title)
+                if posting.description is not None:
+                    await store_description(conn, task, posting.description)
+                    result.inline_descriptions += 1
+                else:
+                    result.needs_description.append(task)
 
         await conn.execute(
             """

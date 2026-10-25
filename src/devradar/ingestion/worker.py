@@ -137,8 +137,8 @@ class Ingestor:
                 for task in outcome.store.needs_description
             )
         )
-        outcome.descriptions_fetched = sum(fetched)
-        outcome.descriptions_failed = len(fetched) - outcome.descriptions_fetched
+        outcome.descriptions_fetched = outcome.store.inline_descriptions + sum(fetched)
+        outcome.descriptions_failed = len(fetched) - sum(fetched)
         return outcome
 
     async def _fetch_description(
@@ -292,7 +292,7 @@ def _print_summary(summary: RunSummary) -> None:
         f"({_total(ok, 'inserted')} new, {_total(ok, 'updated')} updated, {_total(ok, 'unchanged')} unchanged, "
         f"{_total(ok, 'closed')} closed, {_total(ok, 'reopened')} reopened, "
         f"{sum(o.rejected for o in ok)} rejected); "
-        f"descriptions {sum(o.descriptions_fetched for o in ok)} fetched, "
+        f"descriptions {sum(o.descriptions_fetched for o in ok)} stored, "
         f"{sum(o.descriptions_failed for o in ok)} failed"
     )
     failures: dict[str, int] = {}

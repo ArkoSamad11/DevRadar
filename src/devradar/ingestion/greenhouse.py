@@ -1,12 +1,12 @@
 import html
 from datetime import datetime
-from html.parser import HTMLParser
 from typing import Annotated
 
 import httpx
 from pydantic import BaseModel, StringConstraints, ValidationError
 
 from devradar.ingestion.models import Board, MalformedResponse, Posting
+from devradar.ingestion.parsing import html_to_text, read_json
 
 API_BASE = "https://boards-api.greenhouse.io/v1/boards"
 IGNORED_KEYS = {"data_compliance"}
@@ -43,7 +43,7 @@ class GreenhouseAdapter:
     ) -> tuple[list[Posting], int]:
         response = await client.get(f"{API_BASE}/{board.token}/jobs")
         response.raise_for_status()
-        jobs = _json_field(response, "jobs")
+        jobs = _field(read_json(response), "jobs")
         if not isinstance(jobs, list):
             raise MalformedResponse(f"greenhouse:{board.token} returned no jobs list")
 
@@ -60,7 +60,8 @@ class GreenhouseAdapter:
     ) -> str:
         response = await client.get(f"{API_BASE}/{board.token}/jobs/{external_id}")
         response.raise_for_status()
-        return html_to_text(_json_field(response, "content") or "")
+        # Greenhouse double-encodes descriptions: the HTML itself arrives entity-escaped.
+        return html_to_text(html.unescape(_field(read_json(response), "content") or ""))
 
 
 def parse_posting(raw: dict) -> Posting:
@@ -89,25 +90,5 @@ def _employment_type(metadata: list[_Metadata]) -> str | None:
     return None
 
 
-def _json_field(response: httpx.Response, key: str) -> object:
-    try:
-        payload = response.json()
-    except ValueError as error:
-        raise MalformedResponse(f"{response.url} returned invalid JSON") from error
+def _field(payload: object, key: str) -> object:
     return payload.get(key) if isinstance(payload, dict) else None
-
-
-class _TextExtractor(HTMLParser):
-    def __init__(self) -> None:
-        super().__init__()
-        self.parts: list[str] = []
-
-    def handle_data(self, data: str) -> None:
-        self.parts.append(data)
-
-
-def html_to_text(content: str) -> str:
-    # Greenhouse double-encodes descriptions: the HTML itself arrives entity-escaped.
-    extractor = _TextExtractor()
-    extractor.feed(html.unescape(content))
-    return " ".join(" ".join(extractor.parts).split())

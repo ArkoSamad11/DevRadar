@@ -1,3 +1,5 @@
+import hashlib
+import json
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -8,10 +10,10 @@ from pydantic import ValidationError
 from devradar.ingestion.greenhouse import (
     API_BASE,
     GreenhouseAdapter,
-    html_to_text,
     parse_posting,
 )
 from devradar.ingestion.models import Board, MalformedResponse
+from devradar.ingestion.parsing import html_to_text
 
 BOARD = Board(id=1, company_id=1, ats="greenhouse", token="neuralink")
 
@@ -78,9 +80,11 @@ def test_ignored_keys_are_not_stored_or_hashed():
     )
 
 
-def test_html_to_text_decodes_double_escaped_html():
-    content = "&lt;p&gt;Build &amp;amp; ship&lt;/p&gt;&lt;ul&gt;&lt;li&gt;C++&lt;/li&gt;&lt;/ul&gt;"
-    assert html_to_text(content) == "Build & ship C++"
+def test_html_to_text_extracts_text_and_decodes_entities():
+    assert (
+        html_to_text("<p>Build &amp; ship</p><ul><li>C++</li></ul>")
+        == "Build & ship C++"
+    )
 
 
 @pytest.mark.anyio
@@ -109,12 +113,23 @@ async def test_fetch_postings_raises_on_malformed_board_response(response):
 
 @pytest.mark.anyio
 @respx.mock
-async def test_fetch_description_returns_plain_text():
+async def test_fetch_description_decodes_double_escaped_html():
     respx.get(f"{API_BASE}/neuralink/jobs/42").respond(
-        json={"id": 42, "content": "&lt;p&gt;Write firmware&lt;/p&gt;"}
+        json={
+            "id": 42,
+            "content": "&lt;p&gt;Write firmware &amp;amp; drivers&lt;/p&gt;",
+        }
     )
     async with httpx.AsyncClient() as client:
         assert (
             await GreenhouseAdapter().fetch_description(client, BOARD, "42")
-            == "Write firmware"
+            == "Write firmware & drivers"
         )
+
+
+def test_hash_without_inline_description_matches_raw_only_hash():
+    posting = parse_posting(raw_job())
+    raw_only = hashlib.sha256(
+        json.dumps(posting.raw, sort_keys=True).encode()
+    ).hexdigest()
+    assert posting.content_hash == raw_only
