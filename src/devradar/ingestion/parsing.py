@@ -1,8 +1,12 @@
 from html.parser import HTMLParser
+from typing import Annotated
 
 import httpx
+from pydantic import StringConstraints
 
 from devradar.ingestion.models import MalformedResponse
+
+NonEmptyStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 
 def read_json(response: httpx.Response) -> object:

@@ -12,8 +12,9 @@ from psycopg_pool import AsyncConnectionPool
 
 from devradar.config import settings
 from devradar.discovery.run import USER_AGENT
+from devradar.ingestion.ashby import AshbyAdapter
 from devradar.ingestion.greenhouse import GreenhouseAdapter
-from devradar.ingestion.models import Board, MalformedResponse
+from devradar.ingestion.models import Adapter, Board, MalformedResponse
 from devradar.ingestion.store import (
     DescriptionTask,
     StoreResult,
@@ -21,7 +22,10 @@ from devradar.ingestion.store import (
     store_postings,
 )
 
-ADAPTERS = {"greenhouse": GreenhouseAdapter()}
+ADAPTERS: dict[str, Adapter] = {
+    "greenhouse": GreenhouseAdapter(),
+    "ashby": AshbyAdapter(),
+}
 RETRYABLE_STATUSES = {429, 500, 502, 503, 504}
 DISABLE_AFTER_FAILURES = 5
 

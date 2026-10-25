@@ -1,17 +1,14 @@
 import html
 from datetime import datetime
-from typing import Annotated
 
 import httpx
-from pydantic import BaseModel, StringConstraints, ValidationError
+from pydantic import BaseModel, ValidationError
 
 from devradar.ingestion.models import Board, MalformedResponse, Posting
-from devradar.ingestion.parsing import html_to_text, read_json
+from devradar.ingestion.parsing import NonEmptyStr, html_to_text, read_json
 
 API_BASE = "https://boards-api.greenhouse.io/v1/boards"
 IGNORED_KEYS = {"data_compliance"}
-
-NonEmptyStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 
 class _Location(BaseModel):
