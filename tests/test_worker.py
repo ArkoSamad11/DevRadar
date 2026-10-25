@@ -23,18 +23,21 @@ def job(job_id, title="Software Engineer Intern"):
     }
 
 
-def add_boards(conninfo, *tokens):
+def add_boards(conninfo, *tokens, ats="greenhouse"):
     with psycopg.connect(conninfo) as conn:
         (company_id,) = conn.execute(
-            "INSERT INTO companies (name, slug) VALUES ('Acme', 'acme') RETURNING id"
+            """
+            INSERT INTO companies (name, slug) VALUES ('Acme', 'acme')
+            ON CONFLICT (slug) DO UPDATE SET slug = EXCLUDED.slug RETURNING id
+            """
         ).fetchone()
         for token in tokens:
             conn.execute(
                 """
                 INSERT INTO job_boards (company_id, ats, board_token, discovered_via)
-                VALUES (%s, 'greenhouse', %s, 'simplify')
+                VALUES (%s, %s, %s, 'simplify')
                 """,
-                (company_id, token),
+                (company_id, ats, token),
             )
 
 
@@ -180,3 +183,45 @@ async def test_concurrent_requests_never_exceed_the_limit(migrated_db):
 
     assert summary.status == "succeeded"
     assert peak == 3
+
+
+@respx.mock
+async def test_each_ats_gets_its_own_request_limit(migrated_db):
+    add_boards(migrated_db, "g0", "g1", "g2", "g3")
+    add_boards(migrated_db, "a0", "a1", "a2", "a3", ats="ashby")
+    in_flight = {"greenhouse": 0, "ashby": 0}
+    peak = {"greenhouse": 0, "ashby": 0}
+
+    def slow(ats, body):
+        async def respond(request):
+            in_flight[ats] += 1
+            peak[ats] = max(peak[ats], in_flight[ats])
+            await asyncio.sleep(0.02)
+            in_flight[ats] -= 1
+            return httpx.Response(200, json=body)
+
+        return respond
+
+    respx.get(url__regex=rf"{API_BASE}/g\d/jobs").mock(
+        side_effect=slow("greenhouse", {"jobs": []})
+    )
+    respx.get(url__regex=r"https://api.ashbyhq.com/posting-api/job-board/a\d").mock(
+        side_effect=slow("ashby", {"jobs": []})
+    )
+    await ingest(migrated_db, http_concurrency=2)
+    assert peak == {"greenhouse": 2, "ashby": 2}
+
+
+@respx.mock
+async def test_duration_excludes_time_spent_waiting_for_a_slot(migrated_db):
+    add_boards(migrated_db, *(f"board{i}" for i in range(4)))
+
+    async def slow_board(request):
+        await asyncio.sleep(0.05)
+        return httpx.Response(200, json={"jobs": []})
+
+    respx.get(url__regex=rf"{API_BASE}/board\d/jobs").mock(side_effect=slow_board)
+    summary = await ingest(migrated_db, http_concurrency=1)
+
+    assert summary.duration_s >= 0.2
+    assert max(outcome.duration_ms for outcome in summary.outcomes) < 120

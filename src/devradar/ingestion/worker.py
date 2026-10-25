@@ -28,6 +28,8 @@ ADAPTERS: dict[str, Adapter] = {
     "ashby": AshbyAdapter(),
     "lever": LeverAdapter(),
 }
+# Lever's latency rises steeply past 8 concurrent requests without finishing runs sooner.
+ATS_CONCURRENCY = {"lever": 8}
 RETRYABLE_STATUSES = {429, 500, 502, 503, 504}
 DISABLE_AFTER_FAILURES = 5
 
@@ -48,6 +50,11 @@ class RetryPolicy:
 
 
 DEFAULT_RETRY = RetryPolicy()
+
+
+@dataclass
+class Stopwatch:
+    seconds: float = 0.0
 
 
 class FetchFailed(Exception):
@@ -101,7 +108,8 @@ class Ingestor:
     ) -> None:
         self.pool = pool
         self.client = client
-        self.http_slots = asyncio.Semaphore(http_concurrency)
+        self.http_concurrency = http_concurrency
+        self.http_slots: dict[str, asyncio.Semaphore] = {}
         self.retry = retry
 
     async def run(self, run_id: int, boards: list[Board]) -> list[BoardOutcome]:
@@ -112,23 +120,25 @@ class Ingestor:
         return [task.result() for task in tasks]
 
     async def ingest_board(self, run_id: int, board: Board) -> BoardOutcome:
-        started = time.perf_counter()
+        active = Stopwatch()
         try:
-            outcome = await self._ingest(board)
+            outcome = await self._ingest(board, active)
         except Exception as error:  # noqa: BLE001
             # A bug triggered by one board's data must not cancel the other boards' tasks.
             outcome = BoardOutcome(
                 board, "failed", 1, error=f"{type(error).__name__}: {error}"
             )
-        outcome.duration_ms = int((time.perf_counter() - started) * 1000)
+        outcome.duration_ms = int(active.seconds * 1000)
         await self._record(run_id, outcome)
         return outcome
 
-    async def _ingest(self, board: Board) -> BoardOutcome:
+    async def _ingest(self, board: Board, active: Stopwatch) -> BoardOutcome:
         adapter = ADAPTERS[board.ats]
         try:
             (postings, rejected), attempts = await with_retries(
-                lambda: self._limited(adapter.fetch_postings(self.client, board)),
+                lambda: self._limited(
+                    board.ats, adapter.fetch_postings(self.client, board), active
+                ),
                 self.retry,
             )
         except FetchFailed as failure:
@@ -136,7 +146,9 @@ class Ingestor:
 
         outcome = BoardOutcome(board, "succeeded", attempts, len(postings), rejected)
         async with self.pool.connection() as conn:
+            started = time.perf_counter()
             outcome.store = await store_postings(conn, board, postings)
+            active.seconds += time.perf_counter() - started
         fetched = await asyncio.gather(
             *(
                 self._fetch_description(adapter, board, task)
@@ -153,7 +165,8 @@ class Ingestor:
         try:
             description, _ = await with_retries(
                 lambda: self._limited(
-                    adapter.fetch_description(self.client, board, task.external_id)
+                    board.ats,
+                    adapter.fetch_description(self.client, board, task.external_id),
                 ),
                 self.retry,
             )
@@ -163,9 +176,19 @@ class Ingestor:
             await store_description(conn, task, description)
         return True
 
-    async def _limited[T](self, request: Awaitable[T]) -> T:
-        async with self.http_slots:
-            return await request
+    async def _limited[T](
+        self, ats: str, request: Awaitable[T], active: Stopwatch | None = None
+    ) -> T:
+        if ats not in self.http_slots:
+            limit = ATS_CONCURRENCY.get(ats, self.http_concurrency)
+            self.http_slots[ats] = asyncio.Semaphore(min(limit, self.http_concurrency))
+        async with self.http_slots[ats]:
+            started = time.perf_counter()
+            try:
+                return await request
+            finally:
+                if active is not None:
+                    active.seconds += time.perf_counter() - started
 
     async def _record(self, run_id: int, outcome: BoardOutcome) -> None:
         store = outcome.store
