@@ -6,6 +6,7 @@ from psycopg import sql
 from psycopg.conninfo import make_conninfo
 
 from devradar.config import settings
+from devradar.migrate import migrate
 
 
 @pytest.fixture
@@ -18,3 +19,9 @@ def empty_db():
         admin.execute(
             sql.SQL("DROP DATABASE {} WITH (FORCE)").format(sql.Identifier(name))
         )
+
+
+@pytest.fixture
+def migrated_db(empty_db):
+    migrate(empty_db)
+    return empty_db

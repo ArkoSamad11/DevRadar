@@ -3,7 +3,9 @@ from concurrent.futures import ThreadPoolExecutor
 import psycopg
 import pytest
 
-from devradar.migrate import ChecksumMismatch, migrate
+from devradar.migrate import MIGRATIONS_DIR, ChecksumMismatch, migrate
+
+BUNDLED = sorted(path.stem for path in MIGRATIONS_DIR.glob("*.sql"))
 
 
 def write_migration(directory, name, body):
@@ -18,7 +20,7 @@ def table_exists(conninfo, table):
 
 
 def test_applies_bundled_migrations_to_empty_database(empty_db):
-    assert migrate(empty_db) == ["0001_initial"]
+    assert migrate(empty_db) == BUNDLED
     with psycopg.connect(empty_db) as conn:
         assert conn.execute("SELECT count(*) FROM categories").fetchone()[0] == 7
 
@@ -58,4 +60,4 @@ def test_failed_migration_rolls_back_entirely(empty_db, tmp_path):
 def test_concurrent_runs_apply_each_migration_once(empty_db):
     with ThreadPoolExecutor(max_workers=4) as pool:
         results = list(pool.map(lambda _: migrate(empty_db), range(4)))
-    assert sorted(results) == [[], [], [], ["0001_initial"]]
+    assert sorted(results) == [[], [], [], BUNDLED]
