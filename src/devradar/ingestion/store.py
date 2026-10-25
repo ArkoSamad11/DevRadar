@@ -96,9 +96,7 @@ async def store_description(
         await conn.execute(
             "UPDATE jobs SET description = %s WHERE id = %s", (description, task.job_id)
         )
-        await _replace_categories(
-            conn, task.job_id, categorize(task.title, description)
-        )
+        await replace_categories(conn, task.job_id, categorize(task.title, description))
 
 
 async def _known_sources(
@@ -171,11 +169,11 @@ async def _write_posting(
             ],
         )
 
-    await _replace_categories(conn, job_id, categorize(posting.title))
+    await replace_categories(conn, job_id, categorize(posting.title))
     return job_id
 
 
-async def _replace_categories(
+async def replace_categories(
     conn: psycopg.AsyncConnection, job_id: int, categories: set[str]
 ) -> None:
     await conn.execute("DELETE FROM job_categories WHERE job_id = %s", (job_id,))

@@ -35,6 +35,9 @@ class _Job(BaseModel):
 class GreenhouseAdapter:
     ats = "greenhouse"
 
+    def parse(self, raw: dict) -> Posting:
+        return parse_posting(raw)
+
     async def fetch_postings(
         self, client: httpx.AsyncClient, board: Board
     ) -> tuple[list[Posting], int]:
