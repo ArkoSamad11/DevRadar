@@ -9,6 +9,7 @@ from pydantic import BaseModel, StringConstraints, ValidationError
 from devradar.ingestion.models import Board, MalformedResponse, Posting
 
 API_BASE = "https://boards-api.greenhouse.io/v1/boards"
+IGNORED_KEYS = {"data_compliance"}
 
 NonEmptyStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
@@ -72,7 +73,7 @@ def parse_posting(raw: dict) -> Posting:
         ),
         posted_at=job.first_published,
         employment_type=_employment_type(job.metadata or []),
-        raw=raw,
+        raw={key: value for key, value in raw.items() if key not in IGNORED_KEYS},
     )
 
 

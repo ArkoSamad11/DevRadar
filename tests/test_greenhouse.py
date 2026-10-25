@@ -70,6 +70,14 @@ def test_content_hash_changes_when_posting_is_edited():
     )
 
 
+def test_ignored_keys_are_not_stored_or_hashed():
+    posting = parse_posting(raw_job(data_compliance=[{"type": "gdpr"}]))
+    assert "data_compliance" not in posting.raw
+    assert (
+        posting.content_hash == parse_posting(raw_job(data_compliance=[])).content_hash
+    )
+
+
 def test_html_to_text_decodes_double_escaped_html():
     content = "&lt;p&gt;Build &amp;amp; ship&lt;/p&gt;&lt;ul&gt;&lt;li&gt;C++&lt;/li&gt;&lt;/ul&gt;"
     assert html_to_text(content) == "Build & ship C++"
