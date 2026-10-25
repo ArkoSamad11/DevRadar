@@ -37,11 +37,16 @@ used to find *which boards exist*; postings themselves are fetched from the boar
 
 ## Ingestion
 
-`uv run devradar-ingest` polls every enabled board with a supported adapter (currently Greenhouse).
-Each run lists all postings per board, writes only new or changed ones, and fetches descriptions
-only for internships that are new or edited. Boards are fetched concurrently (16 requests in flight)
-with retries on timeouts, 429s and 5xx; a failing board is recorded in `board_fetches` without
-affecting the others. A posting missing from two consecutive successful fetches is marked closed.
+`uv run devradar-ingest` polls every enabled Greenhouse, Ashby and Lever board. Each source is an
+adapter in `src/devradar/ingestion/` that turns its API's records into a common `Posting`; adding a
+source means writing an adapter and registering it, with no schema, store or worker changes.
+
+Each run writes only new or changed postings. Descriptions are kept for internships only: Ashby and
+Lever include them in their listings, while Greenhouse descriptions are fetched per posting, only
+when an internship is new or edited. Requests are limited per source (16 in flight, 8 for Lever) and
+retried on timeouts, 429s and 5xx; a failing board is recorded in `board_fetches` without affecting
+the others, and is disabled after five consecutive failures. A posting missing from two consecutive
+successful fetches is marked closed.
 
 ## Classification
 
