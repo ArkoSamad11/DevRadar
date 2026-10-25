@@ -1,6 +1,11 @@
+import csv
+from pathlib import Path
+
 import pytest
 
 from devradar.ingestion.classify import categorize, is_internship, is_remote
+
+SAMPLE = Path(__file__).parent / "fixtures" / "classifier_sample.csv"
 
 
 @pytest.mark.parametrize(
@@ -34,6 +39,16 @@ def test_is_internship(title, employment_type, expected):
         ("Statistics & Probability Research Intern", {"math"}),
         ("AI Research Scientist Intern", {"ml_ai"}),
         ("Product Marketing Intern", set()),
+        ("Water Infrastructure Engineering Intern", set()),
+        ("Data Science Co-Op (Embedded Science Team)", {"data_science"}),
+        ("Embedded Software Engineer Intern", {"systems", "software"}),
+        ("Data Center Engineer Intern", {"systems"}),
+        ("Cybersecurity Internship", {"security"}),
+        ("Hardware Security Engineer Intern", {"security"}),
+        ("Securities Operations Intern", set()),
+        ("AI & Management Consulting Intern (Value Engineering)", set()),
+        ("Recruiting Intern - AI & Automation", set()),
+        ("Sales Engineer Intern - Cloud Platform", {"systems"}),
     ],
 )
 def test_categorize_by_title(title, expected):
@@ -54,3 +69,17 @@ def test_description_reveals_operations_research_and_math_only():
 )
 def test_is_remote(location, expected):
     assert is_remote(location) is expected
+
+
+def test_holdout_sample_meets_quality_floor():
+    with SAMPLE.open() as f:
+        rows = [row for row in csv.DictReader(f) if row["split"] == "holdout"]
+    tp = fp = fn = 0
+    for row in rows:
+        expected = set(filter(None, row["categories"].split(";")))
+        predicted = categorize(row["title"])
+        tp += len(expected & predicted)
+        fp += len(predicted - expected)
+        fn += len(expected - predicted)
+    assert tp / (tp + fp) >= 0.85
+    assert tp / (tp + fn) >= 0.90

@@ -4,6 +4,13 @@ INTERNSHIP = re.compile(
     r"\b(interns?|internships?|co-?ops?|apprentice(ship)?s?)\b", re.IGNORECASE
 )
 REMOTE = re.compile(r"\bremote\b", re.IGNORECASE)
+NON_TECHNICAL_ROLE = re.compile(
+    r"consult|recruit|marketing|\bsales\b|accounting|finance|legal|talent|human resources",
+    re.IGNORECASE,
+)
+TECHNICAL_ROLE = re.compile(
+    r"\bengineers?\b|developer|scientist|programmer|\bswe\b", re.IGNORECASE
+)
 
 TITLE_CATEGORIES = {
     "quant": r"\bquant(itative)?\b|\btrad(er|ers|ing)\b|market[- ]mak",
@@ -15,8 +22,13 @@ TITLE_CATEGORIES = {
     ),
     "data_science": r"data scien|data analy|analytics|data engineer",
     "systems": (
-        r"\bsystems?\b|embedded|firmware|kernel|operating system|distributed|infrastructure"
-        r"|\binfra\b|compiler|\bsre\b|site reliability|devops|platform|network|\bhpc\b"
+        r"\bsystems?\b|embedded (software|systems?|firmware|linux)|firmware|kernel|operating system"
+        r"|distributed|(cloud|software|data|ml|compute|production) infrastructure|\binfra\b"
+        r"|compiler|\bsre\b|site reliability|devops|platform engineer|network|\bhpc\b"
+        r"|\bcloud\b|data cent(er|re)"
+    ),
+    "security": (
+        r"\bsecurity\b|cyber|penetration test|red team|\bappsec\b|infosec|threat|vulnerabilit"
     ),
     "software": (
         r"software|developer|\bswe\b|back[- ]?end|front[- ]?end|full[- ]?stack|mobile"
@@ -47,6 +59,8 @@ def is_internship(title: str, employment_type: str | None = None) -> bool:
 
 
 def categorize(title: str, description: str | None = None) -> set[str]:
+    if NON_TECHNICAL_ROLE.search(title) and not TECHNICAL_ROLE.search(title):
+        return set()
     categories = {
         slug for slug, pattern in _TITLE_PATTERNS.items() if pattern.search(title)
     }

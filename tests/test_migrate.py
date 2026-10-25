@@ -22,7 +22,7 @@ def table_exists(conninfo, table):
 def test_applies_bundled_migrations_to_empty_database(empty_db):
     assert migrate(empty_db) == BUNDLED
     with psycopg.connect(empty_db) as conn:
-        assert conn.execute("SELECT count(*) FROM categories").fetchone()[0] == 7
+        assert conn.execute("SELECT count(*) FROM categories").fetchone()[0] == 8
 
 
 def test_rerun_applies_nothing(empty_db):
