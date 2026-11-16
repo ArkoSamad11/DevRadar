@@ -5,7 +5,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env")
 
     database_url: str
-    ingest_interval_minutes: float = 15
+    ingest_interval_minutes: float = 60
     discovery_interval_hours: float = 24
 
 
