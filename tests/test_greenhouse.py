@@ -94,8 +94,11 @@ async def test_fetch_postings_counts_rejected_records():
         json={"jobs": [raw_job(), raw_job(id=2, title=""), {"unexpected": True}]}
     )
     async with httpx.AsyncClient() as client:
-        postings, rejected = await GreenhouseAdapter().fetch_postings(client, BOARD)
-    assert ([p.external_id for p in postings], rejected) == (["7565469003"], 2)
+        snapshot = await GreenhouseAdapter().fetch_postings(client, BOARD)
+    assert ([p.external_id for p in snapshot.postings], snapshot.rejected) == (
+        ["7565469003"],
+        2,
+    )
 
 
 @pytest.mark.anyio

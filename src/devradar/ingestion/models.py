@@ -11,6 +11,10 @@ class MalformedResponse(Exception):
     pass
 
 
+class NotModified(Exception):
+    pass
+
+
 @dataclass(frozen=True)
 class Board:
     id: int
@@ -18,6 +22,7 @@ class Board:
     ats: str
     token: str
     api_region: str = "global"
+    etag: str | None = None
 
 
 @dataclass(frozen=True)
@@ -44,6 +49,13 @@ class Posting:
         return hashlib.sha256(content.encode()).hexdigest()
 
 
+@dataclass(frozen=True)
+class BoardSnapshot:
+    postings: list[Posting]
+    rejected: int
+    etag: str | None
+
+
 class Adapter(Protocol):
     ats: str
 
@@ -51,7 +63,7 @@ class Adapter(Protocol):
 
     async def fetch_postings(
         self, client: httpx.AsyncClient, board: Board
-    ) -> tuple[list[Posting], int]: ...
+    ) -> BoardSnapshot: ...
 
     async def fetch_description(
         self, client: httpx.AsyncClient, board: Board, external_id: str

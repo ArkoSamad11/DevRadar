@@ -46,7 +46,7 @@ def query(conninfo, sql):
         return conn.execute(sql).fetchall()
 
 
-async def ingest(conninfo, http_concurrency=16):
+async def ingest(conninfo, http_concurrency=16, full=False):
     async with (
         AsyncConnectionPool(conninfo, min_size=1, max_size=4, open=False) as pool,
         httpx.AsyncClient() as client,
@@ -54,7 +54,7 @@ async def ingest(conninfo, http_concurrency=16):
         ingestor = Ingestor(
             pool, client, http_concurrency=http_concurrency, retry=NO_WAIT
         )
-        return await run_ingestion(pool, client, ingestor=ingestor)
+        return await run_ingestion(pool, client, ingestor=ingestor, full=full)
 
 
 @respx.mock
@@ -225,3 +225,89 @@ async def test_duration_excludes_time_spent_waiting_for_a_slot(migrated_db):
 
     assert summary.duration_s >= 0.2
     assert max(outcome.duration_ms for outcome in summary.outcomes) < 120
+
+
+def conditional_board(route, body, etag):
+    def respond(request):
+        if request.headers.get("if-none-match") == etag:
+            return httpx.Response(304)
+        return httpx.Response(200, json=body, headers={"etag": etag})
+
+    route.mock(side_effect=respond)
+
+
+@respx.mock
+async def test_unchanged_board_is_skipped_with_a_conditional_request(migrated_db):
+    add_boards(migrated_db, "acme")
+    route = respx.get(f"{API_BASE}/acme/jobs")
+    conditional_board(route, {"jobs": [job(1, "Data Analyst")]}, 'W/"v1"')
+
+    first = await ingest(migrated_db)
+    second = await ingest(migrated_db)
+
+    assert route.calls[1].request.headers["if-none-match"] == 'W/"v1"'
+    assert (first.outcomes[0].not_modified, first.outcomes[0].fetched) == (False, 1)
+    assert (second.outcomes[0].not_modified, second.outcomes[0].fetched) == (True, 0)
+    assert second.status == "succeeded"
+    assert query(migrated_db, "SELECT not_modified FROM board_fetches ORDER BY id") == [
+        (False,),
+        (True,),
+    ]
+
+
+@respx.mock
+async def test_not_modified_boards_never_count_as_missing_postings(migrated_db):
+    add_boards(migrated_db, "acme")
+    conditional_board(
+        respx.get(f"{API_BASE}/acme/jobs"), {"jobs": [job(1, "Analyst")]}, '"v1"'
+    )
+    for _ in range(3):
+        await ingest(migrated_db)
+    assert query(migrated_db, "SELECT status FROM jobs") == [("active",)]
+    assert query(migrated_db, "SELECT missed_fetches FROM job_sources") == [(0,)]
+
+
+@respx.mock
+async def test_etag_is_not_saved_when_a_description_fetch_failed(migrated_db):
+    add_boards(migrated_db, "acme")
+    route = respx.get(f"{API_BASE}/acme/jobs")
+    conditional_board(route, {"jobs": [job(1)]}, '"v1"')
+    detail = respx.get(f"{API_BASE}/acme/jobs/1")
+    detail.side_effect = [
+        httpx.Response(404),
+        httpx.Response(200, json={"content": "ok"}),
+    ]
+
+    await ingest(migrated_db)
+    assert query(migrated_db, "SELECT etag FROM job_boards") == [(None,)]
+
+    second = await ingest(migrated_db)
+    assert "if-none-match" not in route.calls[1].request.headers
+    assert second.outcomes[0].descriptions_fetched == 1
+    assert query(migrated_db, "SELECT etag FROM job_boards") == [('"v1"',)]
+
+
+@respx.mock
+async def test_full_run_ignores_stored_etags(migrated_db):
+    add_boards(migrated_db, "acme")
+    route = respx.get(f"{API_BASE}/acme/jobs")
+    conditional_board(route, {"jobs": [job(1, "Analyst")]}, '"v1"')
+    await ingest(migrated_db)
+    full = await ingest(migrated_db, full=True)
+    assert "if-none-match" not in route.calls[1].request.headers
+    assert (full.outcomes[0].not_modified, full.outcomes[0].fetched) == (False, 1)
+
+
+@respx.mock
+async def test_failed_board_keeps_its_previous_etag(migrated_db):
+    add_boards(migrated_db, "acme")
+    route = respx.get(f"{API_BASE}/acme/jobs")
+    route.side_effect = [
+        httpx.Response(200, json={"jobs": []}, headers={"etag": '"v1"'}),
+        httpx.Response(404),
+    ]
+    await ingest(migrated_db)
+    await ingest(migrated_db)
+    assert query(migrated_db, "SELECT etag, consecutive_failures FROM job_boards") == [
+        ('"v1"', 1)
+    ]

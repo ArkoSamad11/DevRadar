@@ -93,8 +93,8 @@ async def test_fetch_postings_uses_the_board_region(region, host):
     )
     board = Board(id=1, company_id=1, ats="lever", token="acme", api_region=region)
     async with httpx.AsyncClient() as client:
-        postings, rejected = await LeverAdapter().fetch_postings(client, board)
-    assert (len(postings), rejected) == (1, 1)
+        snapshot = await LeverAdapter().fetch_postings(client, board)
+    assert (len(snapshot.postings), snapshot.rejected) == (1, 1)
     assert route.calls.last.request.url.params["mode"] == "json"
 
 

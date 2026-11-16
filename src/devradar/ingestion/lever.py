@@ -4,10 +4,11 @@ import httpx
 from pydantic import BaseModel, ValidationError
 
 from devradar.ingestion.classify import is_remote
-from devradar.ingestion.models import Board, MalformedResponse, Posting
+from devradar.ingestion.models import Board, BoardSnapshot, MalformedResponse, Posting
 from devradar.ingestion.parsing import (
     NonEmptyStr,
     collapse_whitespace,
+    get_board_response,
     html_to_text,
     read_json,
 )
@@ -58,12 +59,11 @@ class LeverAdapter:
 
     async def fetch_postings(
         self, client: httpx.AsyncClient, board: Board
-    ) -> tuple[list[Posting], int]:
+    ) -> BoardSnapshot:
         host = API_HOSTS[board.api_region]
-        response = await client.get(
-            f"{host}/v0/postings/{board.token}", params={"mode": "json"}
+        response = await get_board_response(
+            client, f"{host}/v0/postings/{board.token}", board, params={"mode": "json"}
         )
-        response.raise_for_status()
         payload = read_json(response)
         if not isinstance(payload, list):
             raise MalformedResponse(f"lever:{board.token} returned no postings list")
@@ -74,7 +74,7 @@ class LeverAdapter:
                 postings.append(parse_posting(raw))
             except ValidationError:
                 rejected += 1
-        return postings, rejected
+        return BoardSnapshot(postings, rejected, response.headers.get("etag"))
 
     async def fetch_description(
         self, client: httpx.AsyncClient, board: Board, external_id: str

@@ -4,10 +4,11 @@ import httpx
 from pydantic import BaseModel, ValidationError
 
 from devradar.ingestion.classify import is_remote
-from devradar.ingestion.models import Board, MalformedResponse, Posting
+from devradar.ingestion.models import Board, BoardSnapshot, MalformedResponse, Posting
 from devradar.ingestion.parsing import (
     NonEmptyStr,
     collapse_whitespace,
+    get_board_response,
     html_to_text,
     read_json,
 )
@@ -42,9 +43,8 @@ class AshbyAdapter:
 
     async def fetch_postings(
         self, client: httpx.AsyncClient, board: Board
-    ) -> tuple[list[Posting], int]:
-        response = await client.get(f"{API_BASE}/{board.token}")
-        response.raise_for_status()
+    ) -> BoardSnapshot:
+        response = await get_board_response(client, f"{API_BASE}/{board.token}", board)
         payload = read_json(response)
         jobs = payload.get("jobs") if isinstance(payload, dict) else None
         if not isinstance(jobs, list):
@@ -59,7 +59,7 @@ class AshbyAdapter:
                 continue
             if posting.raw.get("isListed") is not False:
                 postings.append(posting)
-        return postings, rejected
+        return BoardSnapshot(postings, rejected, response.headers.get("etag"))
 
     async def fetch_description(
         self, client: httpx.AsyncClient, board: Board, external_id: str

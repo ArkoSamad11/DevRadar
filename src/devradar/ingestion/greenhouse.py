@@ -4,8 +4,13 @@ from datetime import datetime
 import httpx
 from pydantic import BaseModel, ValidationError
 
-from devradar.ingestion.models import Board, MalformedResponse, Posting
-from devradar.ingestion.parsing import NonEmptyStr, html_to_text, read_json
+from devradar.ingestion.models import Board, BoardSnapshot, MalformedResponse, Posting
+from devradar.ingestion.parsing import (
+    NonEmptyStr,
+    get_board_response,
+    html_to_text,
+    read_json,
+)
 
 API_BASE = "https://boards-api.greenhouse.io/v1/boards"
 IGNORED_KEYS = {"data_compliance"}
@@ -37,9 +42,10 @@ class GreenhouseAdapter:
 
     async def fetch_postings(
         self, client: httpx.AsyncClient, board: Board
-    ) -> tuple[list[Posting], int]:
-        response = await client.get(f"{API_BASE}/{board.token}/jobs")
-        response.raise_for_status()
+    ) -> BoardSnapshot:
+        response = await get_board_response(
+            client, f"{API_BASE}/{board.token}/jobs", board
+        )
         jobs = _field(read_json(response), "jobs")
         if not isinstance(jobs, list):
             raise MalformedResponse(f"greenhouse:{board.token} returned no jobs list")
@@ -50,7 +56,7 @@ class GreenhouseAdapter:
                 postings.append(parse_posting(raw))
             except ValidationError:
                 rejected += 1
-        return postings, rejected
+        return BoardSnapshot(postings, rejected, response.headers.get("etag"))
 
     async def fetch_description(
         self, client: httpx.AsyncClient, board: Board, external_id: str

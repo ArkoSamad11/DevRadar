@@ -81,8 +81,8 @@ async def test_fetch_postings_skips_unlisted_and_counts_rejected():
         }
     )
     async with httpx.AsyncClient() as client:
-        postings, rejected = await AshbyAdapter().fetch_postings(client, BOARD)
-    assert ([p.external_id for p in postings], rejected) == (
+        snapshot = await AshbyAdapter().fetch_postings(client, BOARD)
+    assert ([p.external_id for p in snapshot.postings], snapshot.rejected) == (
         ["07b5ee4f-03d5-4cf1-9506-55faac19cdaf"],
         1,
     )

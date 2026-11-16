@@ -15,7 +15,7 @@ from devradar.discovery.run import USER_AGENT
 from devradar.ingestion.ashby import AshbyAdapter
 from devradar.ingestion.greenhouse import GreenhouseAdapter
 from devradar.ingestion.lever import LeverAdapter
-from devradar.ingestion.models import Adapter, Board, MalformedResponse
+from devradar.ingestion.models import Adapter, Board, MalformedResponse, NotModified
 from devradar.ingestion.store import (
     DescriptionTask,
     StoreResult,
@@ -75,6 +75,8 @@ class BoardOutcome:
     descriptions_failed: int = 0
     duration_ms: int = 0
     error: str | None = None
+    not_modified: bool = False
+    etag: str | None = None
 
 
 @dataclass
@@ -135,19 +137,28 @@ class Ingestor:
     async def _ingest(self, board: Board, active: Stopwatch) -> BoardOutcome:
         adapter = ADAPTERS[board.ats]
         try:
-            (postings, rejected), attempts = await with_retries(
+            snapshot, attempts = await with_retries(
                 lambda: self._limited(
                     board.ats, adapter.fetch_postings(self.client, board), active
                 ),
                 self.retry,
             )
+        except NotModified:
+            return BoardOutcome(board, "succeeded", 1, not_modified=True)
         except FetchFailed as failure:
             return BoardOutcome(board, "failed", failure.attempts, error=str(failure))
 
-        outcome = BoardOutcome(board, "succeeded", attempts, len(postings), rejected)
+        outcome = BoardOutcome(
+            board,
+            "succeeded",
+            attempts,
+            len(snapshot.postings),
+            snapshot.rejected,
+            etag=snapshot.etag,
+        )
         async with self.pool.connection() as conn:
             started = time.perf_counter()
-            outcome.store = await store_postings(conn, board, postings)
+            outcome.store = await store_postings(conn, board, snapshot.postings)
             active.seconds += time.perf_counter() - started
         fetched = await asyncio.gather(
             *(
@@ -200,8 +211,8 @@ class Ingestor:
                         run_id, job_board_id, status, attempts, fetched_count, inserted_count,
                         updated_count, unchanged_count, closed_count, reopened_count,
                         rejected_count, descriptions_fetched, descriptions_failed,
-                        duration_ms, error
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        duration_ms, error, not_modified
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         run_id,
@@ -219,15 +230,23 @@ class Ingestor:
                         outcome.descriptions_failed,
                         outcome.duration_ms,
                         outcome.error,
+                        outcome.not_modified,
                     ),
                 )
                 if outcome.status == "succeeded":
+                    # A failed description fetch must not be hidden behind a 304 next run.
+                    save_etag = (
+                        not outcome.not_modified and outcome.descriptions_failed == 0
+                    )
                     await conn.execute(
                         """
-                        UPDATE job_boards SET consecutive_failures = 0, last_success_at = now()
+                        UPDATE job_boards
+                        SET consecutive_failures = 0,
+                            last_success_at = now(),
+                            etag = CASE WHEN %s THEN %s ELSE etag END
                         WHERE id = %s
                         """,
-                        (outcome.board.id,),
+                        (save_etag, outcome.etag, outcome.board.id),
                     )
                 else:
                     await conn.execute(
@@ -253,6 +272,7 @@ async def run_ingestion(
     limit: int | None = None,
     trigger: str = "manual",
     ingestor: Ingestor | None = None,
+    full: bool = False,
 ) -> RunSummary:
     started = time.perf_counter()
     async with pool.connection() as conn:
@@ -262,12 +282,14 @@ async def run_ingestion(
         (run_id,) = await cursor.fetchone()
         cursor = await conn.execute(
             """
-            SELECT id, company_id, ats, board_token, api_region FROM job_boards
+            SELECT id, company_id, ats, board_token, api_region,
+                   CASE WHEN %s THEN NULL ELSE etag END
+            FROM job_boards
             WHERE enabled AND ats = ANY(%s)
             ORDER BY id
             LIMIT %s
             """,
-            (list(ats), limit),
+            (full, list(ats), limit),
         )
         boards = [Board(*row) for row in await cursor.fetchall()]
 
@@ -312,34 +334,42 @@ def _total(outcomes: list[BoardOutcome], counter: str) -> int:
     return sum(getattr(outcome.store, counter) for outcome in outcomes)
 
 
-def _print_summary(summary: RunSummary) -> None:
+def format_summary(summary: RunSummary) -> str:
     outcomes = summary.outcomes
     ok = [o for o in outcomes if o.status == "succeeded"]
-    print(
+    headline = (
         f"run {summary.run_id} {summary.status} in {summary.duration_s:.1f}s: "
-        f"{len(ok)}/{len(outcomes)} boards ok, {sum(o.fetched for o in ok)} postings "
-        f"({_total(ok, 'inserted')} new, {_total(ok, 'updated')} updated, {_total(ok, 'unchanged')} unchanged, "
+        f"{len(ok)}/{len(outcomes)} boards ok "
+        f"({sum(o.not_modified for o in ok)} unchanged since last fetch), "
+        f"{sum(o.fetched for o in ok)} postings read "
+        f"({_total(ok, 'inserted')} new, {_total(ok, 'updated')} updated, "
         f"{_total(ok, 'closed')} closed, {_total(ok, 'reopened')} reopened, "
         f"{sum(o.rejected for o in ok)} rejected); "
         f"descriptions {sum(o.descriptions_fetched for o in ok)} stored, "
         f"{sum(o.descriptions_failed for o in ok)} failed"
     )
+    lines = [headline]
     failures: dict[str, int] = {}
     for outcome in outcomes:
         if outcome.error:
             failures[outcome.error] = failures.get(outcome.error, 0) + 1
     for error, count in sorted(failures.items(), key=lambda item: -item[1]):
-        print(f"  {count} boards failed: {error}")
+        lines.append(f"  {count} boards failed: {error}")
+    return "\n".join(lines)
 
 
-async def _main(limit: int | None) -> RunSummary:
+def create_client() -> httpx.AsyncClient:
+    return httpx.AsyncClient(timeout=20, headers={"User-Agent": USER_AGENT})
+
+
+async def _main(limit: int | None, full: bool) -> RunSummary:
     async with (
         AsyncConnectionPool(
             settings.database_url, min_size=1, max_size=8, open=False
         ) as pool,
-        httpx.AsyncClient(timeout=20, headers={"User-Agent": USER_AGENT}) as client,
+        create_client() as client,
     ):
-        return await run_ingestion(pool, client, limit=limit)
+        return await run_ingestion(pool, client, limit=limit, full=full)
 
 
 def main() -> None:
@@ -347,5 +377,10 @@ def main() -> None:
         description="Fetch postings from enabled job boards."
     )
     parser.add_argument("--limit", type=int, help="only ingest the first N boards")
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help="ignore stored ETags and re-read every board",
+    )
     args = parser.parse_args()
-    _print_summary(asyncio.run(_main(args.limit)))
+    print(format_summary(asyncio.run(_main(args.limit, args.full))))
