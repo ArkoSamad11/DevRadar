@@ -8,7 +8,12 @@ from psycopg_pool import AsyncConnectionPool
 
 from devradar.ingestion import worker
 from devradar.ingestion.greenhouse import API_BASE
-from devradar.ingestion.worker import Ingestor, RetryPolicy, run_ingestion
+from devradar.ingestion.worker import (
+    Ingestor,
+    RetryPolicy,
+    RunInProgress,
+    run_ingestion,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -310,4 +315,36 @@ async def test_failed_board_keeps_its_previous_etag(migrated_db):
     await ingest(migrated_db)
     assert query(migrated_db, "SELECT etag, consecutive_failures FROM job_boards") == [
         ('"v1"', 1)
+    ]
+
+
+@respx.mock
+async def test_only_one_run_can_be_in_progress(migrated_db):
+    add_boards(migrated_db, "slow")
+    started = asyncio.Event()
+
+    async def slow_board(request):
+        started.set()
+        await asyncio.sleep(0.2)
+        return httpx.Response(200, json={"jobs": []})
+
+    respx.get(f"{API_BASE}/slow/jobs").mock(side_effect=slow_board)
+    first = asyncio.create_task(ingest(migrated_db))
+    await started.wait()
+    with pytest.raises(RunInProgress):
+        await ingest(migrated_db)
+    assert (await first).status == "succeeded"
+    assert (await ingest(migrated_db)).status == "succeeded"
+
+
+async def test_runs_left_running_by_a_killed_process_are_marked_failed(migrated_db):
+    with psycopg.connect(migrated_db) as conn:
+        conn.execute("INSERT INTO ingestion_runs (trigger) VALUES ('schedule')")
+    await ingest(migrated_db)
+    assert query(
+        migrated_db,
+        "SELECT status, finished_at IS NOT NULL FROM ingestion_runs ORDER BY id",
+    ) == [
+        ("failed", True),
+        ("succeeded", True),
     ]

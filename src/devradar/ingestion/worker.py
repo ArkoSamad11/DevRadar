@@ -32,6 +32,7 @@ ADAPTERS: dict[str, Adapter] = {
 ATS_CONCURRENCY = {"lever": 8}
 RETRYABLE_STATUSES = {429, 500, 502, 503, 504}
 DISABLE_AFTER_FAILURES = 5
+RUN_LOCK_ID = 7206312
 
 
 @dataclass(frozen=True)
@@ -55,6 +56,10 @@ DEFAULT_RETRY = RetryPolicy()
 @dataclass
 class Stopwatch:
     seconds: float = 0.0
+
+
+class RunInProgress(Exception):
+    pass
 
 
 class FetchFailed(Exception):
@@ -274,6 +279,30 @@ async def run_ingestion(
     ingestor: Ingestor | None = None,
     full: bool = False,
 ) -> RunSummary:
+    async with await psycopg.AsyncConnection.connect(
+        pool.conninfo, autocommit=True
+    ) as lock:
+        cursor = await lock.execute("SELECT pg_try_advisory_lock(%s)", (RUN_LOCK_ID,))
+        (acquired,) = await cursor.fetchone()
+        if not acquired:
+            raise RunInProgress("another ingestion run is in progress")
+        # Holding the lock means no run is active, so any run still marked running was killed.
+        await lock.execute(
+            "UPDATE ingestion_runs SET status = 'failed', finished_at = now()"
+            " WHERE status = 'running'"
+        )
+        return await _run_locked(pool, client, ats, limit, trigger, ingestor, full)
+
+
+async def _run_locked(
+    pool: AsyncConnectionPool,
+    client: httpx.AsyncClient,
+    ats: tuple[str, ...],
+    limit: int | None,
+    trigger: str,
+    ingestor: Ingestor | None,
+    full: bool,
+) -> RunSummary:
     started = time.perf_counter()
     async with pool.connection() as conn:
         cursor = await conn.execute(
@@ -383,4 +412,8 @@ def main() -> None:
         help="ignore stored ETags and re-read every board",
     )
     args = parser.parse_args()
-    print(format_summary(asyncio.run(_main(args.limit, args.full))))
+    try:
+        summary = asyncio.run(_main(args.limit, args.full))
+    except RunInProgress as error:
+        sys.exit(str(error))
+    print(format_summary(summary))
