@@ -1,27 +1,38 @@
 from contextlib import asynccontextmanager
 
 import psycopg
-from fastapi import FastAPI, Response, status
+from fastapi import FastAPI, Request, Response, status
 
-from devradar.db import pool
+from devradar.api import jobs
+from devradar.db import create_pool
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await pool.open()
-    yield
-    await pool.close()
+    async with create_pool() as pool:
+        app.state.pool = pool
+        yield
 
 
-app = FastAPI(title="DevRadar", lifespan=lifespan)
+def create_app() -> FastAPI:
+    app = FastAPI(
+        title="DevRadar",
+        description="Search tech internship postings collected from company job boards.",
+        lifespan=lifespan,
+    )
+    app.include_router(jobs.router)
+    app.add_api_route("/health", health, methods=["GET"], tags=["meta"])
+    return app
 
 
-@app.get("/health")
-async def health(response: Response):
+async def health(request: Request, response: Response):
     try:
-        async with pool.connection(timeout=2) as conn:
+        async with request.app.state.pool.connection(timeout=2) as conn:
             await conn.execute("SELECT 1")
     except psycopg.Error:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return {"status": "degraded", "database": "unreachable"}
     return {"status": "ok", "database": "ok"}
+
+
+app = create_app()
