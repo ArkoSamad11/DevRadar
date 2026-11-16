@@ -53,3 +53,53 @@ class JobDetail(JobSummary):
     first_seen_at: datetime
     closed_at: datetime | None
     sources: list[JobSource]
+
+
+class BoardRef(BaseModel):
+    ats: str
+    token: str
+
+
+class CompanySummary(BaseModel):
+    name: str
+    slug: str
+    active_jobs: int
+    active_internships: int
+    boards: list[BoardRef]
+
+
+class CompanyPage(BaseModel):
+    items: list[CompanySummary]
+    limit: int
+    next_cursor: str | None
+
+
+class SourceStatus(BaseModel):
+    ats: str
+    supported: bool
+    boards: int
+    enabled_boards: int
+    last_success_at: datetime | None
+    active_jobs: int
+
+
+class IngestionRun(BaseModel):
+    id: int
+    trigger: str
+    status: str
+    started_at: datetime
+    finished_at: datetime | None
+    boards: int
+    failed_boards: int
+    postings_fetched: int
+    inserted: int
+    updated: int
+    closed: int
+    rejected: int
+    descriptions_stored: int
+
+
+class IngestionRunPage(BaseModel):
+    items: list[IngestionRun]
+    limit: int
+    next_cursor: str | None

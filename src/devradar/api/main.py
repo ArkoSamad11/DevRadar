@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 import psycopg
 from fastapi import FastAPI, Request, Response, status
 
-from devradar.api import jobs
+from devradar.api import companies, jobs, pipeline
 from devradar.db import create_pool
 
 
@@ -21,6 +21,8 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     app.include_router(jobs.router)
+    app.include_router(companies.router)
+    app.include_router(pipeline.router)
     app.add_api_route("/health", health, methods=["GET"], tags=["meta"])
     return app
 
