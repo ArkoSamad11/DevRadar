@@ -27,6 +27,26 @@ On an iCloud-synced folder (e.g. Desktop), keep the virtualenv out of sync befor
 mkdir .venv.nosync && ln -s .venv.nosync .venv
 ```
 
+## API
+
+`uv run uvicorn devradar.api.main:app` serves the API; interactive docs are at `/docs`.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /jobs` | Search postings, newest first. Filters: `q` (title or description), `category` (repeatable), `location`, `remote`, `company`, `internships_only` (default true), `include_closed`. |
+| `GET /jobs/{id}` | One posting with its description, locations, categories and sources. |
+| `GET /companies` | Tracked companies with active job and internship counts; `q`, `hiring_interns`. |
+| `GET /sources` | Board health per ATS, including discovered-but-unsupported sources. |
+| `GET /ingestion-runs` | Pipeline run history with per-run totals. |
+| `GET /health` | Service and database health. |
+
+Lists return `{"items": [...], "limit": n, "next_cursor": "..."}`; pass `next_cursor` back as `cursor`
+for the next page. Cursors are keyset-based, so pages stay consistent while new postings arrive.
+
+```bash
+curl 'localhost:8000/jobs?q=python&category=ml_ai&location=new%20york&limit=5'
+```
+
 ## Discovery
 
 `uv run devradar-discover` reads the community internship lists
