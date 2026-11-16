@@ -68,6 +68,18 @@ retried on timeouts, 429s and 5xx; a failing board is recorded in `board_fetches
 the others, and is disabled after five consecutive failures. A posting missing from two consecutive
 successful fetches is marked closed.
 
+## Keeping postings current
+
+`uv run devradar-scheduler` runs discovery at startup and then daily, and ingestion every hour
+(`INGEST_INTERVAL_MINUTES`, `DISCOVERY_INTERVAL_HOURS`). Boards are polled with conditional requests:
+each board's ETag is stored and sent back as `If-None-Match`, so an unchanged board answers `304 Not
+Modified` with no body and costs no parsing or writes. In a 15-minute window only 9 of 990 boards
+changed, and a conditional sweep downloaded 5 MB instead of 351 MB.
+
+Only one ingestion run executes at a time (a Postgres advisory lock), so a manual
+`devradar-ingest` started during a scheduled run exits instead of repeating its work. Use
+`devradar-ingest --full` to ignore stored ETags after changing parsing logic.
+
 ## Classification
 
 Postings are tagged as internships and with role categories (software, ML/AI, data science,
