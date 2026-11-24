@@ -427,14 +427,16 @@ def create_client() -> httpx.AsyncClient:
     return httpx.AsyncClient(timeout=20, headers={"User-Agent": USER_AGENT})
 
 
-async def _main(limit: int | None, full: bool) -> RunSummary:
+async def _main(limit: int | None, full: bool, trigger: str) -> RunSummary:
     async with (
         AsyncConnectionPool(
             settings.database_url, min_size=1, max_size=8, open=False
         ) as pool,
         create_client() as client,
     ):
-        return await run_ingestion(pool, client, limit=limit, full=full)
+        return await run_ingestion(
+            pool, client, limit=limit, full=full, trigger=trigger
+        )
 
 
 def main() -> None:
@@ -447,9 +449,17 @@ def main() -> None:
         action="store_true",
         help="ignore stored ETags and re-read every board",
     )
+    parser.add_argument(
+        "--scheduled",
+        action="store_true",
+        help="record the run as scheduled, not manual",
+    )
     args = parser.parse_args()
+    trigger = "schedule" if args.scheduled else "manual"
     try:
-        summary = asyncio.run(_main(args.limit, args.full))
+        summary = asyncio.run(_main(args.limit, args.full, trigger))
     except RunInProgress as error:
         sys.exit(str(error))
     print(format_summary(summary))
+    if summary.status == "failed":
+        sys.exit(1)
