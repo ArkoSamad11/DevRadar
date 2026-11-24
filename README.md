@@ -6,6 +6,9 @@ DevRadar discovers companies from community-maintained internship lists, polls e
 applicant-tracking-system job board directly, normalizes postings into one schema in PostgreSQL,
 and serves them through a FastAPI service.
 
+**Live API:** [https://api-production-45e4e6e8.up.railway.app/docs](https://api-production-45e4e6e8.up.railway.app/docs)
+([health](https://api-production-45e4e6e8.up.railway.app/health), [recent runs](https://api-production-45e4e6e8.up.railway.app/ingestion-runs))
+
 ## Development
 
 Requires [uv](https://docs.astral.sh/uv/) and Docker.
@@ -82,6 +85,13 @@ changed, and a conditional sweep downloaded 5 MB instead of 351 MB.
 Only one ingestion run executes at a time (a Postgres advisory lock), so a manual
 `devradar-ingest` started during a scheduled run exits instead of repeating its work. Use
 `devradar-ingest --full` to ignore stored ETags after changing parsing logic.
+
+## Deployment
+
+Hosted on Railway from one Docker image: a Postgres database reachable only on the private network,
+the API (which runs migrations before each deploy), and two cron jobs that exit between runs:
+`devradar-ingest --scheduled` hourly and `devradar-discover` daily. Cron is used instead of
+`devradar-scheduler`, which remains for running everything locally.
 
 ## Classification
 
