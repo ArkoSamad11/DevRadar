@@ -19,6 +19,8 @@ from devradar.ingestion.models import Adapter, Board, MalformedResponse, NotModi
 from devradar.ingestion.store import (
     DescriptionTask,
     StoreResult,
+    close_board,
+    confirm_misses,
     store_description,
     store_postings,
 )
@@ -31,7 +33,9 @@ ADAPTERS: dict[str, Adapter] = {
 # Lever's latency rises steeply past 8 concurrent requests without finishing runs sooner.
 ATS_CONCURRENCY = {"lever": 8}
 RETRYABLE_STATUSES = {429, 500, 502, 503, 504}
+GONE_STATUSES = {404, 410}
 DISABLE_AFTER_FAILURES = 5
+RECHECK_DISABLED_AFTER = "1 day"
 RUN_LOCK_ID = 7206312
 
 
@@ -63,9 +67,10 @@ class RunInProgress(Exception):
 
 
 class FetchFailed(Exception):
-    def __init__(self, message: str, attempts: int) -> None:
+    def __init__(self, message: str, attempts: int, gone: bool) -> None:
         super().__init__(message)
         self.attempts = attempts
+        self.gone = gone
 
 
 @dataclass
@@ -82,6 +87,7 @@ class BoardOutcome:
     error: str | None = None
     not_modified: bool = False
     etag: str | None = None
+    gone: bool = False
 
 
 @dataclass
@@ -100,7 +106,7 @@ async def with_retries[T](
             return await operation(), attempt
         except (httpx.HTTPError, MalformedResponse) as error:
             if attempt == policy.attempts or not _is_retryable(error):
-                raise FetchFailed(_describe(error), attempt) from error
+                raise FetchFailed(_describe(error), attempt, _is_gone(error)) from error
             await asyncio.sleep(policy.delay(attempt, error))
     raise AssertionError("unreachable")
 
@@ -149,9 +155,18 @@ class Ingestor:
                 self.retry,
             )
         except NotModified:
-            return BoardOutcome(board, "succeeded", 1, not_modified=True)
+            outcome = BoardOutcome(board, "succeeded", 1, not_modified=True)
+            async with self.pool.connection() as conn:
+                outcome.store.closed = await confirm_misses(conn, board)
+            return outcome
         except FetchFailed as failure:
-            return BoardOutcome(board, "failed", failure.attempts, error=str(failure))
+            return BoardOutcome(
+                board,
+                "failed",
+                failure.attempts,
+                error=str(failure),
+                gone=failure.gone,
+            )
 
         outcome = BoardOutcome(
             board,
@@ -210,6 +225,7 @@ class Ingestor:
         store = outcome.store
         try:
             async with self.pool.connection() as conn, conn.transaction():
+                await _update_board(conn, outcome)
                 await conn.execute(
                     """
                     INSERT INTO board_fetches (
@@ -238,36 +254,45 @@ class Ingestor:
                         outcome.not_modified,
                     ),
                 )
-                if outcome.status == "succeeded":
-                    # A failed description fetch must not be hidden behind a 304 next run.
-                    save_etag = (
-                        not outcome.not_modified and outcome.descriptions_failed == 0
-                    )
-                    await conn.execute(
-                        """
-                        UPDATE job_boards
-                        SET consecutive_failures = 0,
-                            last_success_at = now(),
-                            etag = CASE WHEN %s THEN %s ELSE etag END
-                        WHERE id = %s
-                        """,
-                        (save_etag, outcome.etag, outcome.board.id),
-                    )
-                else:
-                    await conn.execute(
-                        """
-                        UPDATE job_boards
-                        SET consecutive_failures = consecutive_failures + 1,
-                            enabled = consecutive_failures + 1 < %s
-                        WHERE id = %s
-                        """,
-                        (DISABLE_AFTER_FAILURES, outcome.board.id),
-                    )
         except psycopg.Error as error:
             print(
                 f"could not record fetch for board {outcome.board.id}: {error}",
                 file=sys.stderr,
             )
+
+
+async def _update_board(conn: psycopg.AsyncConnection, outcome: BoardOutcome) -> None:
+    if outcome.status == "succeeded":
+        # A failed description fetch must not be hidden behind a 304 next run.
+        save_etag = not outcome.not_modified and outcome.descriptions_failed == 0
+        await conn.execute(
+            """
+            UPDATE job_boards
+            SET consecutive_failures = 0,
+                last_success_at = now(),
+                enabled = true,
+                disabled_at = NULL,
+                etag = CASE WHEN %s THEN %s ELSE etag END
+            WHERE id = %s
+            """,
+            (save_etag, outcome.etag, outcome.board.id),
+        )
+    elif outcome.gone:
+        cursor = await conn.execute(
+            """
+            UPDATE job_boards
+            SET consecutive_failures = consecutive_failures + 1,
+                enabled = consecutive_failures + 1 < %(limit)s,
+                disabled_at = CASE WHEN consecutive_failures + 1 >= %(limit)s THEN now() END,
+                etag = CASE WHEN consecutive_failures + 1 < %(limit)s THEN etag END
+            WHERE id = %(id)s
+            RETURNING enabled
+            """,
+            {"limit": DISABLE_AFTER_FAILURES, "id": outcome.board.id},
+        )
+        (enabled,) = await cursor.fetchone()
+        if not enabled:
+            outcome.store.closed = await close_board(conn, outcome.board)
 
 
 async def run_ingestion(
@@ -314,11 +339,11 @@ async def _run_locked(
             SELECT id, company_id, ats, board_token, api_region,
                    CASE WHEN %s THEN NULL ELSE etag END
             FROM job_boards
-            WHERE enabled AND ats = ANY(%s)
+            WHERE (enabled OR disabled_at < now() - %s::interval) AND ats = ANY(%s)
             ORDER BY id
             LIMIT %s
             """,
-            (full, list(ats), limit),
+            (full, RECHECK_DISABLED_AFTER, list(ats), limit),
         )
         boards = [Board(*row) for row in await cursor.fetchall()]
 
@@ -343,6 +368,13 @@ def _is_retryable(error: Exception) -> bool:
     if isinstance(error, httpx.HTTPStatusError):
         return error.response.status_code in RETRYABLE_STATUSES
     return isinstance(error, httpx.TransportError)
+
+
+def _is_gone(error: Exception) -> bool:
+    return (
+        isinstance(error, httpx.HTTPStatusError)
+        and error.response.status_code in GONE_STATUSES
+    )
 
 
 def _retry_after_seconds(error: Exception) -> float | None:

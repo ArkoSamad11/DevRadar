@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 
 import psycopg
+from psycopg import sql
 from psycopg.types.json import Jsonb
 
 from devradar.ingestion.classify import categorize, is_internship, is_remote
@@ -43,9 +44,7 @@ async def store_postings(
     external_ids = [posting.external_id for posting in unique]
 
     async with conn.transaction():
-        await conn.execute(
-            "SELECT pg_advisory_xact_lock(%s, %s)", (BOARD_LOCK_NAMESPACE, board.id)
-        )
+        await _lock_board(conn, board)
         known = await _known_sources(conn, board.ats, external_ids)
 
         seen_job_ids = []
@@ -89,7 +88,12 @@ async def store_postings(
             """,
             (seen_job_ids,),
         )
-        result.closed = await _record_misses(conn, board, external_ids)
+        result.closed = await _add_miss(
+            conn,
+            board,
+            sql.SQL("NOT (external_id = ANY(%(seen)s))"),
+            {"seen": external_ids},
+        )
     return result
 
 
@@ -190,16 +194,40 @@ async def replace_categories(
     )
 
 
-async def _record_misses(
-    conn: psycopg.AsyncConnection, board: Board, seen_external_ids: list[str]
+async def confirm_misses(conn: psycopg.AsyncConnection, board: Board) -> int:
+    async with conn.transaction():
+        await _lock_board(conn, board)
+        return await _add_miss(conn, board, sql.SQL("missed_fetches > 0"), {})
+
+
+async def close_board(conn: psycopg.AsyncConnection, board: Board) -> int:
+    async with conn.transaction():
+        await _lock_board(conn, board)
+        await conn.execute(
+            "UPDATE job_sources SET missed_fetches = %s WHERE job_board_id = %s",
+            (MISSES_BEFORE_CLOSE - 1, board.id),
+        )
+        return await _add_miss(conn, board, sql.SQL("TRUE"), {})
+
+
+async def _lock_board(conn: psycopg.AsyncConnection, board: Board) -> None:
+    await conn.execute(
+        "SELECT pg_advisory_xact_lock(%s, %s)", (BOARD_LOCK_NAMESPACE, board.id)
+    )
+
+
+async def _add_miss(
+    conn: psycopg.AsyncConnection, board: Board, condition: sql.SQL, params: dict
 ) -> int:
+    # Capped at the threshold so long-closed postings are not rewritten on every run.
     cursor = await conn.execute(
-        """
-        UPDATE job_sources SET missed_fetches = missed_fetches + 1
-        WHERE job_board_id = %s AND NOT (external_id = ANY(%s))
-        RETURNING job_id
-        """,
-        (board.id, seen_external_ids),
+        sql.SQL("""
+            UPDATE job_sources SET missed_fetches = missed_fetches + 1
+            WHERE job_board_id = %(board_id)s AND missed_fetches < %(threshold)s
+              AND {condition}
+            RETURNING job_id
+        """).format(condition=condition),
+        {"board_id": board.id, "threshold": MISSES_BEFORE_CLOSE, **params},
     )
     missed_job_ids = [row[0] for row in await cursor.fetchall()]
     return await _count(

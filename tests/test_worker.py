@@ -348,3 +348,101 @@ async def test_runs_left_running_by_a_killed_process_are_marked_failed(migrated_
         ("failed", True),
         ("succeeded", True),
     ]
+
+
+def versioned_board(route, versions):
+    current = {"index": 0}
+
+    def respond(request):
+        etag, jobs = versions[current["index"]]
+        if request.headers.get("if-none-match") == etag:
+            return httpx.Response(304)
+        return httpx.Response(200, json={"jobs": jobs}, headers={"etag": etag})
+
+    route.mock(side_effect=respond)
+    return current
+
+
+@respx.mock
+async def test_removed_posting_closes_even_when_the_board_then_answers_304(migrated_db):
+    add_boards(migrated_db, "acme")
+    both, one = [job(1, "Analyst"), job(2, "Engineer")], [job(1, "Analyst")]
+    board = versioned_board(
+        respx.get(f"{API_BASE}/acme/jobs"), [('"v1"', both), ('"v2"', one)]
+    )
+    await ingest(migrated_db)
+    board["index"] = 1
+    first_miss = await ingest(migrated_db)
+    confirmed = await ingest(migrated_db)
+
+    assert (
+        first_miss.outcomes[0].store.closed,
+        confirmed.outcomes[0].store.closed,
+    ) == (0, 1)
+    assert confirmed.outcomes[0].not_modified
+    statuses = "SELECT posting_key, status FROM jobs ORDER BY id"
+    assert query(migrated_db, statuses) == [
+        ("greenhouse:1", "active"),
+        ("greenhouse:2", "closed"),
+    ]
+
+
+@respx.mock
+async def test_closed_postings_are_not_rewritten_by_later_runs(migrated_db):
+    add_boards(migrated_db, "acme")
+    board = versioned_board(
+        respx.get(f"{API_BASE}/acme/jobs"),
+        [('"v1"', [job(1, "Analyst")]), ('"v2"', [])],
+    )
+    await ingest(migrated_db)
+    board["index"] = 1
+    for _ in range(2):
+        await ingest(migrated_db)
+    version = "SELECT xmin::text, missed_fetches FROM job_sources"
+    before = query(migrated_db, version)
+    await ingest(migrated_db)
+    await ingest(migrated_db, full=True)
+    assert query(migrated_db, version) == before
+
+
+@respx.mock
+async def test_an_outage_never_disables_a_board(migrated_db):
+    add_boards(migrated_db, "acme")
+    respx.get(f"{API_BASE}/acme/jobs").mock(side_effect=httpx.ConnectTimeout("down"))
+    for _ in range(worker.DISABLE_AFTER_FAILURES + 1):
+        await ingest(migrated_db)
+    assert query(migrated_db, "SELECT enabled FROM job_boards") == [(True,)]
+
+
+@respx.mock
+async def test_disabling_a_dead_board_closes_its_jobs(migrated_db):
+    add_boards(migrated_db, "acme")
+    route = respx.get(f"{API_BASE}/acme/jobs")
+    route.respond(json={"jobs": [job(1, "Analyst")]})
+    await ingest(migrated_db)
+    route.respond(404)
+    for _ in range(worker.DISABLE_AFTER_FAILURES):
+        await ingest(migrated_db)
+    assert query(migrated_db, "SELECT enabled FROM job_boards") == [(False,)]
+    assert query(migrated_db, "SELECT status FROM jobs") == [("closed",)]
+
+
+@respx.mock
+async def test_a_disabled_board_is_rechecked_later_and_can_recover(migrated_db):
+    add_boards(migrated_db, "acme")
+    route = respx.get(f"{API_BASE}/acme/jobs")
+    conditional_board(route, {"jobs": [job(1, "Analyst")]}, '"v1"')
+    await ingest(migrated_db)
+    route.mock(side_effect=None, return_value=httpx.Response(404))
+    for _ in range(worker.DISABLE_AFTER_FAILURES):
+        await ingest(migrated_db)
+    assert (await ingest(migrated_db)).outcomes == []
+
+    with psycopg.connect(migrated_db) as conn:
+        conn.execute("UPDATE job_boards SET disabled_at = now() - interval '8 days'")
+    conditional_board(route, {"jobs": [job(1, "Analyst")]}, '"v1"')
+    await ingest(migrated_db)
+    assert query(migrated_db, "SELECT enabled, disabled_at FROM job_boards") == [
+        (True, None)
+    ]
+    assert query(migrated_db, "SELECT status FROM jobs") == [("active",)]
