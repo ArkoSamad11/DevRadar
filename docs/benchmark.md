@@ -97,7 +97,7 @@ on 2026-11-24. Raw results: [benchmark-results.json](benchmark-results.json).
   same word, and `verilog` misses `SystemVerilog`.
 - **Trigram indexes on `title` and `description`** used 16 MB less, but common keywords took about
   three times as long, since every candidate is case-folded again (46 vs 16 ms in SQL).
-- **Indexes on locations and categories** showed no gain beyond noise.
+- **Indexes on locations and categories** showed no gain on top of the other indexes.
 
 ## Reproduce
 
