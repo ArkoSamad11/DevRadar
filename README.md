@@ -38,7 +38,7 @@ mkdir .venv.nosync && ln -s .venv.nosync .venv
 | `GET /companies` | Tracked companies with active job and internship counts; `q`, `hiring_interns`. |
 | `GET /sources` | Board health per ATS, including discovered-but-unsupported sources. |
 | `GET /ingestion-runs` | Pipeline run history with per-run totals. |
-| `GET /health` | Service and database health. |
+| `GET /health` | Database health, plus `stale` when ingestion has missed three intervals. |
 
 Lists return `{"items": [...], "limit": n, "next_cursor": "..."}`; pass `next_cursor` back as `cursor`
 for the next page. Cursors are keyset-based, so pages stay consistent while new postings arrive.
@@ -63,10 +63,11 @@ source means writing an adapter and registering it, with no schema, store or wor
 
 Each run writes only new or changed postings. Descriptions are kept for internships only: Ashby and
 Lever include them in their listings, while Greenhouse descriptions are fetched per posting, only
-when an internship is new or edited. Requests are limited per source (16 in flight, 8 for Lever) and
+when an internship is new or edited. Requests are limited per source (8 in flight, 16 for Ashby) and
 retried on timeouts, 429s and 5xx; a failing board is recorded in `board_fetches` without affecting
-the others, and is disabled after five consecutive failures. A posting missing from two consecutive
-successful fetches is marked closed.
+the others. Five consecutive 404s disable a board and close its postings; timeouts and 5xx never do,
+and disabled boards are rechecked daily. A posting missing from two consecutive successful fetches
+is marked closed, and a 304 counts as confirming an earlier miss.
 
 ## Keeping postings current
 
@@ -75,6 +76,8 @@ successful fetches is marked closed.
 each board's ETag is stored and sent back as `If-None-Match`, so an unchanged board answers `304 Not
 Modified` with no body and costs no parsing or writes. In a 15-minute window only 9 of 990 boards
 changed, and a conditional sweep downloaded 5 MB instead of 351 MB.
+
+`docker compose up -d` runs the database and the scheduler as a `worker` container.
 
 Only one ingestion run executes at a time (a Postgres advisory lock), so a manual
 `devradar-ingest` started during a scheduled run exits instead of repeating its work. Use

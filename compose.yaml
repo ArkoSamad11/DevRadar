@@ -1,6 +1,7 @@
 services:
   db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: devradar
       POSTGRES_PASSWORD: devradar
@@ -15,6 +16,17 @@ services:
       interval: 2s
       timeout: 3s
       retries: 15
+
+  worker:
+    build: .
+    command: ["sh", "-c", "devradar-migrate && exec devradar-scheduler"]
+    environment:
+      DATABASE_URL: postgresql://devradar:devradar@db:5432/devradar
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    stop_grace_period: 60s
 
 volumes:
   pgdata:
