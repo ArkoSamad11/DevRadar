@@ -194,6 +194,15 @@ async def replace_categories(
     )
 
 
+async def forget_content_hash(
+    conn: psycopg.AsyncConnection, source: str, external_id: str
+) -> None:
+    await conn.execute(
+        "UPDATE job_sources SET content_hash = '' WHERE source = %s AND external_id = %s",
+        (source, external_id),
+    )
+
+
 async def confirm_misses(conn: psycopg.AsyncConnection, board: Board) -> int:
     async with conn.transaction():
         await _lock_board(conn, board)

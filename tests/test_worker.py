@@ -446,3 +446,23 @@ async def test_a_disabled_board_is_rechecked_later_and_can_recover(migrated_db):
         (True, None)
     ]
     assert query(migrated_db, "SELECT status FROM jobs") == [("active",)]
+
+
+@respx.mock
+async def test_failed_description_of_an_edited_internship_is_retried(migrated_db):
+    add_boards(migrated_db, "acme")
+    board = versioned_board(
+        respx.get(f"{API_BASE}/acme/jobs"),
+        [('"v1"', [job(1)]), ('"v2"', [job(1, "Backend Engineer Intern")])],
+    )
+    detail = respx.get(f"{API_BASE}/acme/jobs/1")
+    detail.side_effect = [
+        httpx.Response(200, json={"content": "old"}),
+        httpx.Response(404),
+        httpx.Response(200, json={"content": "new"}),
+    ]
+    await ingest(migrated_db)
+    board["index"] = 1
+    await ingest(migrated_db)
+    await ingest(migrated_db)
+    assert query(migrated_db, "SELECT description FROM jobs") == [("new",)]

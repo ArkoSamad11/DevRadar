@@ -21,6 +21,7 @@ from devradar.ingestion.store import (
     StoreResult,
     close_board,
     confirm_misses,
+    forget_content_hash,
     store_description,
     store_postings,
 )
@@ -30,8 +31,8 @@ ADAPTERS: dict[str, Adapter] = {
     "ashby": AshbyAdapter(),
     "lever": LeverAdapter(),
 }
-# Lever's latency rises steeply past 8 concurrent requests without finishing runs sooner.
-ATS_CONCURRENCY = {"lever": 8}
+# Lever's latency rises past 8 concurrent requests; Greenhouse answered 429 to bursts at 16.
+ATS_CONCURRENCY = {"lever": 8, "greenhouse": 8}
 RETRYABLE_STATUSES = {429, 500, 502, 503, 504}
 GONE_STATUSES = {404, 410}
 DISABLE_AFTER_FAILURES = 5
@@ -202,6 +203,9 @@ class Ingestor:
                 self.retry,
             )
         except FetchFailed:
+            # Without this, an edited posting would look unchanged next run and keep old text.
+            async with self.pool.connection() as conn:
+                await forget_content_hash(conn, board.ats, task.external_id)
             return False
         async with self.pool.connection() as conn:
             await store_description(conn, task, description)
