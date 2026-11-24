@@ -233,3 +233,38 @@ async def test_job_detail_includes_description_and_sources(api, catalog):
 
 async def test_unknown_job_is_404(api, catalog):
     assert (await api.get("/jobs/999999")).status_code == 404
+
+
+@pytest.mark.parametrize(
+    ("query", "expected"),
+    [
+        ("q=intern&category=security", ["Security Engineer Intern"]),
+        ("q=100&remote=true", ["ML Research Intern"]),
+        ("q=100&remote=false", ["Data Science Intern"]),
+        ("q=python&location=chicago", []),
+        ("q=engineer&company=acme", ["Software Engineer Intern"]),
+        (
+            "q=engineer&company=acme&internships_only=false",
+            ["Software Engineer Intern", "Senior Software Engineer"],
+        ),
+    ],
+)
+async def test_keyword_combines_with_other_filters(api, catalog, query, expected):
+    assert titles(await api.get(f"/jobs?{query}")) == expected
+
+
+async def test_keyword_with_filter_paginates(api, catalog):
+    first = (await api.get("/jobs?q=intern&company=acme&limit=2")).json()
+    params = {
+        "q": "intern",
+        "company": "acme",
+        "limit": 2,
+        "cursor": first["next_cursor"],
+    }
+    second = (await api.get("/jobs", params=params)).json()
+    assert [i["title"] for i in first["items"] + second["items"]] == [
+        "Software Engineer Intern",
+        "ML Research Intern",
+        "Quant Trader Intern",
+    ]
+    assert second["next_cursor"] is None

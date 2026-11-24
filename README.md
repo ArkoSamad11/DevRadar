@@ -50,6 +50,10 @@ for the next page. Cursors are keyset-based, so pages stay consistent while new 
 curl 'localhost:8000/jobs?q=python&category=ml_ai&location=new%20york&limit=5'
 ```
 
+On a fixed copy of the real data (80,038 jobs), p95 latency fell from 367 ms to 8 ms for companies
+hiring interns and from 130 ms to 5 ms for rare keywords. One search got slower; see the
+[benchmark report](docs/benchmark.md).
+
 ## Discovery
 
 `uv run devradar-discover` reads the community internship lists

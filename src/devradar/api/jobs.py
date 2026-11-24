@@ -55,9 +55,7 @@ async def list_jobs(
         conditions.append(sql.SQL("j.status = 'active'"))
     if q:
         params["pattern"] = contains_pattern(q)
-        conditions.append(
-            sql.SQL("(j.title ILIKE %(pattern)s OR j.description ILIKE %(pattern)s)")
-        )
+        conditions.append(sql.SQL("j.search_text LIKE lower(%(pattern)s)"))
     if category:
         params["categories"] = [c.value for c in category]
         conditions.append(
