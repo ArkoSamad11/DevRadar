@@ -4,7 +4,10 @@ import psycopg
 from fastapi import FastAPI, Request, Response, status
 
 from devradar.api import companies, jobs, pipeline
+from devradar.config import settings
 from devradar.db import create_pool
+
+MISSED_RUNS_BEFORE_STALE = 3
 
 
 @asynccontextmanager
@@ -30,11 +33,23 @@ def create_app() -> FastAPI:
 async def health(request: Request, response: Response):
     try:
         async with request.app.state.pool.connection(timeout=2) as conn:
-            await conn.execute("SELECT 1")
+            cursor = await conn.execute(
+                """
+                SELECT max(finished_at),
+                       coalesce(max(finished_at) > now() - make_interval(mins => %s), false)
+                FROM ingestion_runs WHERE status IN ('succeeded', 'partial')
+                """,
+                (int(settings.ingest_interval_minutes * MISSED_RUNS_BEFORE_STALE),),
+            )
+            last_ingestion_at, fresh = await cursor.fetchone()
     except psycopg.Error:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return {"status": "degraded", "database": "unreachable"}
-    return {"status": "ok", "database": "ok"}
+    return {
+        "status": "ok" if fresh else "stale",
+        "database": "ok",
+        "last_ingestion_at": last_ingestion_at,
+    }
 
 
 app = create_app()
