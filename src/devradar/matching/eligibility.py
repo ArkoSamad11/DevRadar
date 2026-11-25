@@ -15,7 +15,7 @@ DEGREE_PATTERNS = {
     Degree.mba: r"\bmba\b",
     Degree.phd: r"\bph\.?\s?d\b|\bdoctora",
 }
-_DEGREES = {
+DEGREE_REGEXES = {
     degree: re.compile(p, re.IGNORECASE) for degree, p in DEGREE_PATTERNS.items()
 }
 _SEASON = r"(?:spring|summer|fall|autumn|winter)"
@@ -37,7 +37,9 @@ _WORK_AUTHORIZATION = re.compile(
 
 
 def degrees_named(title: str) -> set[Degree]:
-    return {degree for degree, pattern in _DEGREES.items() if pattern.search(title)}
+    return {
+        degree for degree, pattern in DEGREE_REGEXES.items() if pattern.search(title)
+    }
 
 
 def terms_named(title: str) -> set[str]:
