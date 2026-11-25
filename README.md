@@ -70,7 +70,8 @@ source means writing an adapter and registering it, with no schema, store or wor
 
 Each run writes only new or changed postings. Descriptions are kept for internships only: Ashby and
 Lever include them in their listings, while Greenhouse descriptions are fetched per posting, only
-when an internship is new or edited. Requests are limited per source (8 in flight, 16 for Ashby) and
+when an internship is new or edited. Requests are limited per source (one per second for Lever, at most 8 at once for Greenhouse and 16 for
+Ashby) and
 retried on timeouts, 429s and 5xx; a failing board is recorded in `board_fetches` without affecting
 the others. Five consecutive 404s disable a board and close its postings; timeouts and 5xx never do,
 and disabled boards are rechecked daily. A posting missing from two consecutive successful fetches
@@ -105,6 +106,25 @@ operations research and math. `scripts/evaluate_classifier.py` scores the rules 
 hand-labeled real titles (`tests/fixtures/classifier_sample.csv`), tuned on one half and measured on
 the other. After changing the rules, `uv run devradar-reclassify` re-applies them to stored postings
 without refetching anything.
+
+## Role model
+
+`src/devradar/roles/` scores text against six roles with TF-IDF and one logistic regression per role.
+It learns from internship and full-time descriptions, labeled by the title rules, and is evaluated on
+internships of companies held out of training. Scores are calibrated, and each is explained by the
+words behind it. Training uses scikit-learn; serving needs only NumPy (a 0.4 MB file, 24 MB of memory).
+
+| Trained on | Mean average precision | Precision at 20 |
+|---|---:|---:|
+| 3,080 internships | 0.631 | 0.797 |
+| 18,277 internships and full-time jobs | 0.662 | 0.844 |
+
+These measure agreement with the title rules, not whether a person would want the job.
+
+```bash
+uv run python -m devradar.roles.train            # train and save the model
+uv run python -m devradar.roles.train --compare  # compare training data choices
+```
 
 ## Migrations
 

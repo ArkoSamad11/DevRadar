@@ -10,6 +10,7 @@ requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.162.0",
     "httpx>=0.28.1",
+    "numpy>=2",
     "psycopg[binary,pool]>=3.3.6",
     "pydantic-settings>=2.16.1",
     "uvicorn[standard]>=0.54.0",
@@ -31,4 +32,5 @@ dev = [
     "pytest>=9.1.1",
     "respx>=0.23.1",
     "ruff>=0.17.2",
+    "scikit-learn>=1.9.1",
 ]

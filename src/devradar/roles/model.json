@@ -1,0 +1,40 @@
+{
+ "trained_at": "2026-11-25",
+ "algorithm": "TF-IDF + one logistic regression per role",
+ "labels": "title rules in devradar.ingestion.classify",
+ "features": "description text only",
+ "regularization_c": 3.0,
+ "terms": 15306,
+ "examples": 18277,
+ "internship_examples": 3080,
+ "companies": 958,
+ "examples_by_source": {
+  "ashby": 9893,
+  "greenhouse": 1707,
+  "lever": 6677
+ },
+ "positives": {
+  "software": 2383,
+  "ml_ai": 1269,
+  "data_science": 394,
+  "systems": 1337,
+  "security": 365,
+  "quant": 165
+ },
+ "evaluation": {
+  "measured_on": "internships of companies held out of training",
+  "against": "title-rule labels, not human judgments of resume matches",
+  "seeds": [
+   1,
+   2,
+   3
+  ],
+  "mean_average_precision": 0.662,
+  "macro_f1": 0.625,
+  "precision_at_10": 0.872,
+  "precision_at_20": 0.844,
+  "best_guess_right": 0.83,
+  "expected_calibration_error_before": 0.055,
+  "expected_calibration_error_after": 0.016
+ }
+}
