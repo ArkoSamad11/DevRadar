@@ -38,6 +38,7 @@ mkdir .venv.nosync && ln -s .venv.nosync .venv
 |---|---|
 | `GET /jobs` | Search postings, newest first. Filters: `q` (title or description), `category` (repeatable), `location`, `remote`, `company`, `internships_only` (default true), `include_closed`. |
 | `GET /jobs/{id}` | One posting with its description, locations, categories and sources. |
+| `POST /match` | Rank postings against a resume (PDF or plain text, up to 1 MB). Filters: `kind`, `degree`, `term`, `category`, `location`, `remote`. |
 | `GET /companies` | Tracked companies with active job and internship counts; `q`, `hiring_interns`. |
 | `GET /sources` | Board health per ATS, including discovered-but-unsupported sources. |
 | `GET /ingestion-runs` | Pipeline run history with per-run totals. |
@@ -125,6 +126,21 @@ These measure agreement with the title rules, not whether a person would want th
 uv run python -m devradar.roles.train            # train and save the model
 uv run python -m devradar.roles.train --compare  # compare training data choices
 ```
+
+## Resume matching
+
+`POST /match` scores a resume's roles, drops postings whose titles rule the applicant out (another
+degree or term, or a senior title), ranks the rest by word similarity and role fit, and explains each
+one with shared terms and skills the resume lacks. Full-time postings are compared by title only.
+
+```bash
+curl -H 'Content-Type: application/pdf' --data-binary @resume.pdf \
+  'localhost:8000/match?degree=bachelors&term=summer%202027'
+```
+
+Resumes are read in memory and discarded, never written to disk, the database or logs. PDFs are parsed
+in a separate process with CPU, memory and time limits, and requests are limited by size, rate and
+concurrency. The ranking weights are hand-set; match quality has not been measured on real resumes.
 
 ## Migrations
 

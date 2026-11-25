@@ -23,13 +23,13 @@ class RoleModel:
     offsets: np.ndarray
 
     def scores(self, text: str) -> dict[str, float]:
-        columns, values = self._vectorize(text)
+        columns, values = self.vectorize(text)
         decisions = self.weights[:, columns] @ values + self.intercepts
         probabilities = 1 / (1 + np.exp(-(self.slopes * decisions + self.offsets)))
         return dict(zip(ROLES, probabilities.tolist(), strict=True))
 
     def explain(self, text: str, role: str, limit: int = 5) -> list[tuple[str, float]]:
-        columns, values = self._vectorize(text)
+        columns, values = self.vectorize(text)
         contributions = self.weights[ROLES.index(role), columns] * values
         terms = list(self.vocabulary)
         top = np.argsort(-contributions)[:limit]
@@ -39,7 +39,7 @@ class RoleModel:
             if contributions[i] > 0
         ]
 
-    def _vectorize(self, text: str) -> tuple[np.ndarray, np.ndarray]:
+    def vectorize(self, text: str) -> tuple[np.ndarray, np.ndarray]:
         counts = Counter(t for t in tokenize(text) if t in self.vocabulary)
         columns = np.array([self.vocabulary[term] for term in counts], dtype=np.intp)
         frequencies = np.array([1 + math.log(count) for count in counts.values()])

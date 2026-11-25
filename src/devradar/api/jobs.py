@@ -120,7 +120,9 @@ async def list_jobs(
         encode_cursor(rows[-1]["listed_at"], rows[-1]["id"]) if has_more else None
     )
     return JobPage(
-        items=[_summary(row) for row in rows], limit=limit, next_cursor=next_cursor
+        items=[summary_from_row(row) for row in rows],
+        limit=limit,
+        next_cursor=next_cursor,
     )
 
 
@@ -144,7 +146,7 @@ async def get_job(conn: Connection, job_id: int) -> JobDetail:
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "job not found")
     return JobDetail(
-        **_summary(row).model_dump(),
+        **summary_from_row(row).model_dump(),
         description=row["description"],
         posted_at=row["posted_at"],
         first_seen_at=row["first_seen_at"],
@@ -153,7 +155,7 @@ async def get_job(conn: Connection, job_id: int) -> JobDetail:
     )
 
 
-def _summary(row: dict) -> JobSummary:
+def summary_from_row(row: dict) -> JobSummary:
     return JobSummary(
         id=row["id"],
         title=row["title"],

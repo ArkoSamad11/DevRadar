@@ -13,6 +13,7 @@ dependencies = [
     "numpy>=2",
     "psycopg[binary,pool]>=3.3.6",
     "pydantic-settings>=2.16.1",
+    "pypdf>=7.1.1",
     "uvicorn[standard]>=0.54.0",
 ]
 

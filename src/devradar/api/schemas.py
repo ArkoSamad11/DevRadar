@@ -103,3 +103,33 @@ class IngestionRunPage(BaseModel):
     items: list[IngestionRun]
     limit: int
     next_cursor: str | None
+
+
+class RoleScore(BaseModel):
+    role: str
+    score: float
+    evidence: list[str]
+
+
+class MatchKind(StrEnum):
+    internships = "internships"
+    full_time = "full_time"
+
+
+class JobMatch(BaseModel):
+    job: JobSummary
+    score: float
+    similarity: float
+    role_fit: float
+    matched_terms: list[str]
+    matched_skills: list[str]
+    missing_skills: list[str]
+    mentions_work_authorization: bool
+    similar_postings: list[int]
+
+
+class MatchResponse(BaseModel):
+    roles: list[RoleScore]
+    confident: bool
+    skills: list[str]
+    matches: list[JobMatch]
