@@ -16,6 +16,7 @@ from devradar.ingestion.ashby import AshbyAdapter
 from devradar.ingestion.greenhouse import GreenhouseAdapter
 from devradar.ingestion.lever import LeverAdapter
 from devradar.ingestion.models import Adapter, Board, MalformedResponse, NotModified
+from devradar.ingestion.pacing import Pacer
 from devradar.ingestion.store import (
     DescriptionTask,
     StoreResult,
@@ -31,8 +32,10 @@ ADAPTERS: dict[str, Adapter] = {
     "ashby": AshbyAdapter(),
     "lever": LeverAdapter(),
 }
-# Lever's latency rises past 8 concurrent requests; Greenhouse answered 429 to bursts at 16.
-ATS_CONCURRENCY = {"lever": 8, "greenhouse": 8}
+# Greenhouse answered 429 to bursts at 16 concurrent requests.
+ATS_CONCURRENCY = {"greenhouse": 8}
+# api.lever.co/robots.txt asks for "Crawl-delay: 1".
+ATS_MIN_INTERVAL = {"lever": 1.0}
 RETRYABLE_STATUSES = {429, 500, 502, 503, 504}
 GONE_STATUSES = {404, 410}
 DISABLE_AFTER_FAILURES = 5
@@ -124,6 +127,9 @@ class Ingestor:
         self.client = client
         self.http_concurrency = http_concurrency
         self.http_slots: dict[str, asyncio.Semaphore] = {}
+        self.pacers = {
+            ats: Pacer(interval) for ats, interval in ATS_MIN_INTERVAL.items()
+        }
         self.retry = retry
 
     async def run(self, run_id: int, boards: list[Board]) -> list[BoardOutcome]:
@@ -218,6 +224,8 @@ class Ingestor:
             limit = ATS_CONCURRENCY.get(ats, self.http_concurrency)
             self.http_slots[ats] = asyncio.Semaphore(min(limit, self.http_concurrency))
         async with self.http_slots[ats]:
+            if ats in self.pacers:
+                await self.pacers[ats].wait()
             started = time.perf_counter()
             try:
                 return await request

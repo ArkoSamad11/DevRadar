@@ -1,4 +1,5 @@
 import asyncio
+import itertools
 
 import httpx
 import psycopg
@@ -466,3 +467,24 @@ async def test_failed_description_of_an_edited_internship_is_retried(migrated_db
     await ingest(migrated_db)
     await ingest(migrated_db)
     assert query(migrated_db, "SELECT description FROM jobs") == [("new",)]
+
+
+@respx.mock
+async def test_paced_ats_spaces_out_request_starts(migrated_db, monkeypatch):
+    monkeypatch.setattr(worker, "ATS_MIN_INTERVAL", {"greenhouse": 0.05})
+    add_boards(migrated_db, *(f"board{i}" for i in range(5)))
+    starts = []
+
+    async def board(request):
+        starts.append(asyncio.get_running_loop().time())
+        return httpx.Response(200, json={"jobs": []})
+
+    respx.get(url__regex=rf"{API_BASE}/board\d/jobs").mock(side_effect=board)
+    summary = await ingest(migrated_db)
+    gaps = [later - earlier for earlier, later in itertools.pairwise(sorted(starts))]
+    assert len(gaps) == 4 and min(gaps) > 0.04
+    assert max(outcome.duration_ms for outcome in summary.outcomes) < 120
+
+
+def test_lever_is_paced_to_one_request_per_second():
+    assert worker.ATS_MIN_INTERVAL["lever"] >= 1.0
