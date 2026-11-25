@@ -98,12 +98,23 @@ function searchFeed() {
   };
 }
 
+// Employers sometimes open several postings with the same title in the same place.
+function groupRepeats(jobs) {
+  const groups = new Map();
+  for (const job of jobs) {
+    const key = JSON.stringify([job.company.slug, job.title, job.locations]);
+    if (groups.has(key)) groups.get(key).others.push(job);
+    else groups.set(key, { job, others: [] });
+  }
+  return [...groups.values()];
+}
+
 function tagList(names, className) {
   return element("ul", { className: "tags" }, ...names.map((name) =>
     element("li", { textContent: name, className })));
 }
 
-function renderRow({ job, match }) {
+function renderRow({ job, match, others = [] }) {
   const side = element("span", { className: "side" });
   if (match) {
     side.append(element("span", {
@@ -118,6 +129,12 @@ function renderRow({ job, match }) {
   const row = element("li", {},
     element("div", { className: "row" }, webLink(job.url, job.title), side),
     element("p", { className: "meta", textContent: details.filter(Boolean).join(" · ") }));
+  if (others.length) {
+    const links = others.map((other, i) => webLink(other.url, `posting ${i + 2}`));
+    row.append(element("p", { className: "quiet repeats",
+      textContent: `Posted ${others.length + 1} times: ` }));
+    row.lastChild.append(...links.flatMap((link, i) => (i ? [", ", link] : [link])));
+  }
   if (match) renderReasons(row, match);
   return row;
 }
@@ -181,12 +198,13 @@ function refresh() {
   } else {
     const rows = matching
       ? state.matches.filter((m) => matchesFilters(m.job)).map((m) => ({ job: m.job, match: m }))
-      : state.jobs.filter(matchesFilters).map((job) => ({ job }));
+      : groupRepeats(state.jobs.filter(matchesFilters));
     state.feed = localFeed(rows);
     const noun = matching ? "match" : "internship";
     const plural = matching ? "matches" : "internships";
+    const total = rows.reduce((sum, row) => sum + 1 + (row.others?.length || 0), 0);
     $("count").textContent = rows.length
-      ? `${rows.length.toLocaleString()} ${rows.length === 1 ? noun : plural}${matching ? ", best first" : ", newest first"}`
+      ? `${total.toLocaleString()} ${total === 1 ? noun : plural}${matching ? ", best first" : ", newest first"}`
       : `No ${plural} fit these filters.`;
   }
   $("results").replaceChildren();
