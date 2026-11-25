@@ -4,7 +4,9 @@ const CATEGORY_NAMES = {
   software: "Software", ml_ai: "ML & AI", data_science: "Data science", systems: "Systems",
   security: "Security", quant: "Quant", operations_research: "Operations research", math: "Math",
 };
+const DEGREE_NAMES = { bachelors: "Bachelor's", masters: "Master's", mba: "MBA", phd: "PhD" };
 const SOURCE_NAMES = { greenhouse: "Greenhouse", ashby: "Ashby", lever: "Lever" };
+const GRADUATION_MONTH = /^20\d\d-(0[1-9]|1[0-2])$/;
 const PAGE_SIZE = 30;
 const MAX_BYTES = 1_000_000;
 
@@ -139,10 +141,29 @@ function renderRow({ job, match, others = [] }) {
   return row;
 }
 
+function monthName(iso) {
+  const [year, month] = iso.split("-").map(Number);
+  return new Date(year, month - 1).toLocaleDateString("en-US", { month: "short", year: "numeric" });
+}
+
+function requirements({ degrees, graduation }) {
+  const parts = [];
+  if (degrees.length) parts.push(`${degrees.map((d) => DEGREE_NAMES[d]).join(", ")} students`);
+  if (graduation) {
+    const { earliest, latest } = graduation;
+    if (earliest && latest) parts.push(`graduating ${monthName(earliest)} to ${monthName(latest)}`);
+    else if (latest) parts.push(`graduating by ${monthName(latest)}`);
+    else parts.push(`graduating ${monthName(earliest)} or later`);
+  }
+  return parts.join(", ");
+}
+
 function renderReasons(row, match) {
   const why = element("dl", { className: "why" });
   const add = (label, content) => why.append(
     element("dt", { textContent: label }), element("dd", {}, content));
+  const asked = requirements(match);
+  if (asked) add("Open to", asked);
   if (match.matched_skills.length) add("You have", tagList(match.matched_skills, ""));
   if (match.missing_skills.length) add("It also asks for", tagList(match.missing_skills, "miss"));
   if (match.matched_terms.length) add("Shared words", match.matched_terms.join(", "));
@@ -286,6 +307,7 @@ async function matchResume() {
   const request = ++state.request;
   const params = new URLSearchParams({ kind: $("kind").value, limit: 50 });
   for (const id of ["degree", "term"]) if ($(id).value) params.set(id, $(id).value);
+  if (GRADUATION_MONTH.test($("graduation").value)) params.set("graduation", $("graduation").value);
   setStatus("Matching…");
   let result;
   try {
@@ -386,6 +408,10 @@ function start() {
     matchResume();
   });
   for (const id of ["degree", "term", "kind"]) $(id).addEventListener("change", matchResume);
+  // Typing a year fires a change for every digit, so half-typed dates are skipped.
+  $("graduation").addEventListener("change", ({ target }) => {
+    if (!target.value || GRADUATION_MONTH.test(target.value)) matchResume();
+  });
   $("clear").addEventListener("click", clearResume);
 
   new IntersectionObserver((entries) => entries[0].isIntersecting && showMore(),

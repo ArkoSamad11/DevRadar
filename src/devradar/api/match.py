@@ -1,4 +1,5 @@
 import asyncio
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
@@ -59,6 +60,10 @@ async def match_resume(
     term: Annotated[
         str | None, Query(pattern=r"^(spring|summer|fall|winter) 20\d\d$")
     ] = None,
+    graduation: Annotated[
+        str | None,
+        Query(pattern=r"^20\d\d-(0[1-9]|1[0-2])$", description="month, as YYYY-MM"),
+    ] = None,
     category: Annotated[list[Category] | None, Query()] = None,
     location: Annotated[str | None, Query(min_length=2, max_length=100)] = None,
     remote: bool | None = None,
@@ -67,7 +72,8 @@ async def match_resume(
     """Rank postings against a resume, sent as a PDF or plain text body.
 
     The resume is read in memory to answer this request and then discarded.
-    Full-time postings are compared by title only, and senior titles are left out.
+    Postings are left out when they clearly state a degree, term or graduation date that the
+    applicant does not meet. Full-time postings are compared by title only, without senior titles.
     """
     matcher = request.app.state.matcher
     if not matcher.limiter.allow(client_address(request)):
@@ -88,7 +94,14 @@ async def match_resume(
             conn, internships, category, location, remote
         )
     matches = await asyncio.to_thread(
-        index.rank, matcher.model, resume, limit, degree, term, allowed
+        index.rank,
+        matcher.model,
+        resume,
+        limit,
+        degree=degree,
+        term=term,
+        graduation=date.fromisoformat(f"{graduation}-01") if graduation else None,
+        allowed_ids=allowed,
     )
     skills = find_skills(resume)
     async with request.app.state.pool.connection() as conn:
@@ -225,6 +238,8 @@ async def describe_matches(
                     row["description"]
                 ),
                 similar_postings=match.duplicate_ids,
+                degrees=[d for d in Degree if d in match.requirements.degrees],
+                graduation=match.requirements.graduation,
             )
         )
     return described

@@ -1,8 +1,10 @@
-from datetime import datetime
+from datetime import date, datetime
 from enum import StrEnum
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
+
+from devradar.matching.eligibility import Degree
 
 
 class Category(StrEnum):
@@ -116,6 +118,13 @@ class MatchKind(StrEnum):
     full_time = "full_time"
 
 
+class GraduationRange(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    earliest: date | None
+    latest: date | None
+
+
 class JobMatch(BaseModel):
     job: JobSummary
     score: float
@@ -126,6 +135,8 @@ class JobMatch(BaseModel):
     missing_skills: list[str]
     mentions_work_authorization: bool
     similar_postings: list[int]
+    degrees: list[Degree] = Field(description="accepted degrees; empty if not stated")
+    graduation: GraduationRange | None = Field(description="null if not stated")
 
 
 class MatchResponse(BaseModel):

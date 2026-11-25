@@ -138,13 +138,15 @@ open tab and nothing is saved in the browser.
 
 ## Resume matching
 
-`POST /match` scores a resume's roles, drops postings whose titles rule the applicant out (another
-degree or term, or a senior title), ranks the rest by word similarity and role fit, and explains each
-one with shared terms and skills the resume lacks. Full-time postings are compared by title only.
+`POST /match` scores a resume's roles, drops postings that clearly state a requirement the applicant
+does not meet, ranks the rest by word similarity and role fit, and explains each one with shared terms,
+the degree and graduation date it asks for, and skills the resume lacks. Degrees and graduation dates
+are read from titles and descriptions, terms and seniority from titles. Full-time postings are compared
+by title only.
 
 ```bash
 curl -H 'Content-Type: application/pdf' --data-binary @resume.pdf \
-  'localhost:8000/match?degree=bachelors&term=summer%202027'
+  'localhost:8000/match?degree=bachelors&graduation=2029-05&term=summer%202027'
 ```
 
 Resumes are read in memory and discarded, never written to disk, the database or logs. PDFs are parsed

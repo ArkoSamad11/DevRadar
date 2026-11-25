@@ -167,6 +167,47 @@ async def test_degree_and_term_filters_drop_only_stated_mismatches(api):
     )
 
 
+STATED = [
+    ("Trading Intern", "acme", QUANT + "Must be pursuing a PhD in mathematics."),
+    (
+        "Research Intern",
+        "globex",
+        QUANT
+        + "Pursuing a Bachelor's or Master's, graduating between Dec 2027 and June 2028.",
+    ),
+    ("Strategy Intern", "initech", QUANT + "A PhD is a plus."),
+]
+
+
+async def test_descriptions_that_state_a_degree_or_graduation_date_decide(
+    api, migrated_db
+):
+    with psycopg.connect(migrated_db) as conn:
+        conn.execute("DELETE FROM jobs")
+    add_jobs(migrated_db, [(*job, "Chicago, IL", True) for job in STATED])
+
+    assert set(titles(await post(api))) == {title for title, *_ in STATED}
+    bachelors = {"degree": "bachelors"}
+    assert set(titles(await post(api, graduation="2028-05", **bachelors))) == {
+        "Research Intern",
+        "Strategy Intern",
+    }
+    assert titles(await post(api, graduation="2029-05", **bachelors)) == [
+        "Strategy Intern"
+    ]
+    assert "Research Intern" in titles(await post(api, degree="mba"))
+
+    stated = {m["job"]["title"]: m for m in (await post(api)).json()["matches"]}
+    assert stated["Trading Intern"]["degrees"] == ["phd"]
+    assert stated["Trading Intern"]["graduation"] is None
+    assert stated["Research Intern"]["degrees"] == ["bachelors", "masters"]
+    assert stated["Research Intern"]["graduation"] == {
+        "earliest": "2027-12-01",
+        "latest": "2028-06-28",
+    }
+    assert stated["Strategy Intern"]["degrees"] == []
+
+
 async def test_location_remote_and_category_filters(api):
     assert set(titles(await post(api, location="new york"))) == {JOBS[1][0], JOBS[2][0]}
     assert titles(await post(api, remote=True)) == ["Trading Intern"]
@@ -231,7 +272,15 @@ async def test_bad_uploads_are_rejected(api, body, content_type, expected):
 
 
 @pytest.mark.parametrize(
-    "query", ["term=someday", "degree=none", "limit=0", "kind=all"]
+    "query",
+    [
+        "term=someday",
+        "degree=none",
+        "limit=0",
+        "kind=all",
+        "graduation=2029-13",
+        "graduation=May 2029",
+    ],
 )
 async def test_bad_parameters_are_rejected(api, query):
     response = await api.post(

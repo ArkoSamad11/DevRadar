@@ -2,16 +2,18 @@ import asyncio
 import re
 import time
 from dataclasses import dataclass
+from datetime import date
 
 import numpy as np
 from psycopg_pool import AsyncConnectionPool
 
 from devradar.ingestion.classify import categorize
-from devradar.matching.eligibility import Degree, degrees_named, is_senior, terms_named
+from devradar.matching.eligibility import Degree, is_senior, terms_named
+from devradar.matching.requirements import Requirements, read_requirements
 from devradar.roles.model import RoleModel
 from devradar.roles.text import ROLES
 
-BATCH = 200
+BATCH = 50
 MAX_PER_COMPANY = 3
 CONFIDENT_ROLE_SCORE = 0.2
 # Similarity of a strong match; a fixed scale keeps weak results from looking strong.
@@ -28,6 +30,7 @@ class Match:
     role_fit: float
     matched_terms: list[str]
     duplicate_ids: list[int]
+    requirements: Requirements
 
 
 @dataclass(frozen=True)
@@ -42,7 +45,7 @@ class PostingIndex:
     values: np.ndarray
     starts: np.ndarray
     role_scores: np.ndarray
-    degrees: list[set[Degree] | frozenset]
+    requirements: list[Requirements]
     terms: list[set[str] | frozenset]
     words: list[str]
 
@@ -53,6 +56,7 @@ class PostingIndex:
         limit: int,
         degree: Degree | None = None,
         term: str | None = None,
+        graduation: date | None = None,
         allowed_ids: set[int] | None = None,
     ) -> list[Match]:
         columns, values = model.vectorize(resume)
@@ -63,7 +67,7 @@ class PostingIndex:
             weights=self.values * dense[self.columns],
             minlength=len(self.job_ids),
         )
-        eligible = self._eligible(degree, term, allowed_ids)
+        eligible = self._eligible(degree, term, graduation, allowed_ids)
         if not eligible.any():
             return []
 
@@ -79,15 +83,21 @@ class PostingIndex:
         )
 
     def _eligible(
-        self, degree: Degree | None, term: str | None, allowed_ids: set[int] | None
+        self,
+        degree: Degree | None,
+        term: str | None,
+        graduation: date | None,
+        allowed_ids: set[int] | None,
     ) -> np.ndarray:
         eligible = np.ones(len(self.job_ids), dtype=bool)
         if degree:
-            eligible &= np.array(
-                [not named or degree in named for named in self.degrees]
-            )
+            eligible &= np.array([r.admits_degree(degree) for r in self.requirements])
         if term:
             eligible &= np.array([not named or term in named for named in self.terms])
+        if graduation:
+            eligible &= np.array(
+                [r.admits_graduation(graduation) for r in self.requirements]
+            )
         if allowed_ids is not None:
             eligible &= np.isin(self.job_ids, list(allowed_ids))
         return eligible
@@ -110,6 +120,7 @@ class PostingIndex:
                 role_fit=round(float(role_fit[i]), 3),
                 matched_terms=self._matched_terms(i, dense),
                 duplicate_ids=[],
+                requirements=self.requirements[i],
             )
         return list(matches.values())
 
@@ -130,7 +141,7 @@ async def build_index(
 ) -> PostingIndex:
     # Full-time descriptions are not stored, so those postings are matched on their titles.
     job_ids, company_ids, groups, columns, values, starts = [], [], [], [], [], [0]
-    role_scores, degrees, terms = [], [], []
+    role_scores, requirements, terms = [], [], []
     known_groups: dict[tuple[int, str], int] = {}
     async with (
         pool.connection() as conn,
@@ -169,7 +180,7 @@ async def build_index(
                 role_scores.append(
                     [1.0 if r in titled else predicted[r] for r in ROLES]
                 )
-                degrees.append(degrees_named(title) or NONE_NAMED)
+                requirements.append(read_requirements(title, description))
                 terms.append(terms_named(title) or NONE_NAMED)
             await asyncio.sleep(0)
     return PostingIndex(
@@ -181,7 +192,7 @@ async def build_index(
         values=np.concatenate(values) if values else np.empty(0, dtype=np.float32),
         starts=np.array(starts),
         role_scores=np.array(role_scores, dtype=np.float32).reshape(-1, len(ROLES)),
-        degrees=degrees,
+        requirements=requirements,
         terms=terms,
         words=list(model.vocabulary),
     )
