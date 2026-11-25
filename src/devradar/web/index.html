@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DevRadar</title>
+<meta name="description" content="Tech internships collected hourly from company job boards, matched to your resume.">
+<link rel="stylesheet" href="/styles.css">
+<script src="/app.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#results">Skip to results</a>
+<header>
+  <h1>DevRadar</h1>
+  <p id="freshness" role="status">Loading internships…</p>
+  <nav><a href="/docs">API</a> <a href="https://github.com/ArkoSamad11/DevRadar">Source</a></nav>
+</header>
+<main>
+  <section class="resume" aria-labelledby="resume-heading">
+    <h2 id="resume-heading">Match your resume</h2>
+    <div id="drop" class="drop">
+      <p><strong>Drop a PDF here</strong> or
+        <label class="button">choose a file<input id="file" type="file" accept="application/pdf,.pdf"></label></p>
+      <p class="quiet">Up to 1 MB. Read in memory to rank jobs, then discarded.</p>
+    </div>
+    <details id="paste"><summary>Paste text instead</summary>
+      <textarea id="text" rows="7" aria-label="Resume text"></textarea>
+      <button id="use-text" type="button">Match this text</button>
+    </details>
+    <div class="fields">
+      <label>Degree<select id="degree"><option value="">Any</option><option value="bachelors">Bachelor's</option><option value="masters">Master's</option><option value="mba">MBA</option><option value="phd">PhD</option></select></label>
+      <label>Term<select id="term"><option value="">Any</option></select></label>
+      <label>Jobs<select id="kind"><option value="internships">Internships</option><option value="full_time">Full-time (titles only)</option></select></label>
+    </div>
+    <p id="resume-status" class="status" role="status" aria-live="polite"></p>
+    <div id="profile" hidden>
+      <p class="file"><span id="resume-name"></span> <button id="clear" type="button" class="link">Remove</button></p>
+      <h3>Roles you match</h3>
+      <ol id="roles"></ol>
+      <h3>Skills found</h3>
+      <ul id="skills" class="tags"></ul>
+    </div>
+  </section>
+  <section class="jobs" aria-labelledby="jobs-heading">
+    <div class="tabs" role="tablist" aria-label="View">
+      <button id="tab-all" role="tab" aria-selected="true" aria-controls="results" type="button">All internships</button>
+      <button id="tab-matches" role="tab" aria-selected="false" aria-controls="results" type="button" disabled>Your matches</button>
+    </div>
+    <h2 id="jobs-heading" class="hidden">Jobs</h2>
+    <div class="filters">
+      <label class="grow">Search<input id="search" type="search" placeholder="Title, company or place" autocomplete="off"></label>
+      <label class="grow">Location<input id="location" type="search" placeholder="e.g. New York" autocomplete="off"></label>
+      <label class="check"><input id="remote" type="checkbox"> Remote</label>
+      <label class="check" id="descriptions-option"><input id="descriptions" type="checkbox"> Search descriptions</label>
+    </div>
+    <div id="categories" class="chips" role="group" aria-label="Categories"></div>
+    <p id="count" role="status" aria-live="polite"></p>
+    <ol id="results" role="tabpanel" tabindex="-1"></ol>
+    <p id="end" class="quiet"></p>
+    <div id="sentinel" aria-hidden="true"></div>
+  </section>
+</main>
+</body>
+</html>

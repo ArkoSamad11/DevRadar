@@ -201,15 +201,16 @@ class IndexCache:
             run_id, checked_at, index = self._indexes.get(internships, (-1, 0.0, None))
             if index is not None and time.monotonic() - checked_at < REFRESH_SECONDS:
                 return index
-            latest = await self._latest_run()
+            latest = await latest_run(self.pool)
             if index is None or latest != run_id:
                 index = await build_index(self.pool, self.model, internships)
             self._indexes[internships] = (latest, time.monotonic(), index)
             return index
 
-    async def _latest_run(self) -> int:
-        async with self.pool.connection() as conn:
-            cursor = await conn.execute(
-                "SELECT coalesce(max(id), 0) FROM ingestion_runs WHERE finished_at IS NOT NULL"
-            )
-            return (await cursor.fetchone())[0]
+
+async def latest_run(pool: AsyncConnectionPool) -> int:
+    async with pool.connection() as conn:
+        cursor = await conn.execute(
+            "SELECT coalesce(max(id), 0) FROM ingestion_runs WHERE finished_at IS NOT NULL"
+        )
+        return (await cursor.fetchone())[0]

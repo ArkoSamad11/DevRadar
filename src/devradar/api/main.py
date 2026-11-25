@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 import psycopg
 from fastapi import FastAPI, Request, Response, status
 
-from devradar.api import companies, jobs, match, pipeline
+from devradar.api import companies, jobs, match, pipeline, site
 from devradar.config import settings
 from devradar.db import create_pool
 
@@ -15,6 +15,7 @@ async def lifespan(app: FastAPI):
     async with create_pool() as pool:
         app.state.pool = pool
         app.state.matcher = match.Matcher(pool)
+        app.state.snapshot = site.Snapshot()
         yield
 
 
@@ -26,6 +27,7 @@ def create_app() -> FastAPI:
     )
     app.include_router(jobs.router)
     app.include_router(match.router)
+    app.include_router(site.router)
     app.include_router(companies.router)
     app.include_router(pipeline.router)
     app.add_api_route("/health", health, methods=["GET"], tags=["meta"])

@@ -6,7 +6,8 @@ DevRadar discovers companies from community-maintained internship lists, polls e
 applicant-tracking-system job board directly, normalizes postings into one schema in PostgreSQL,
 and serves them through a FastAPI service.
 
-**Live API:** [https://api-production-45e4e6e8.up.railway.app/docs](https://api-production-45e4e6e8.up.railway.app/docs)
+**Live site:** [https://api-production-45e4e6e8.up.railway.app](https://api-production-45e4e6e8.up.railway.app)
+· API docs: [https://api-production-45e4e6e8.up.railway.app/docs](https://api-production-45e4e6e8.up.railway.app/docs)
 ([health](https://api-production-45e4e6e8.up.railway.app/health), [recent runs](https://api-production-45e4e6e8.up.railway.app/ingestion-runs))
 
 ## Development
@@ -39,6 +40,7 @@ mkdir .venv.nosync && ln -s .venv.nosync .venv
 | `GET /jobs` | Search postings, newest first. Filters: `q` (title or description), `category` (repeatable), `location`, `remote`, `company`, `internships_only` (default true), `include_closed`. |
 | `GET /jobs/{id}` | One posting with its description, locations, categories and sources. |
 | `POST /match` | Rank postings against a resume (PDF or plain text, up to 1 MB). Filters: `kind`, `degree`, `term`, `category`, `location`, `remote`. |
+| `GET /internships` | Every active internship in one cacheable response, revalidated with an ETag. |
 | `GET /companies` | Tracked companies with active job and internship counts; `q`, `hiring_interns`. |
 | `GET /sources` | Board health per ATS, including discovered-but-unsupported sources. |
 | `GET /ingestion-runs` | Pipeline run history with per-run totals. |
@@ -126,6 +128,13 @@ These measure agreement with the title rules, not whether a person would want th
 uv run python -m devradar.roles.train            # train and save the model
 uv run python -m devradar.roles.train --compare  # compare training data choices
 ```
+
+## Website
+
+`GET /` serves a page built from plain HTML, CSS and JavaScript (`src/devradar/web/`). It loads every
+internship once (about 200 KB compressed), filters them in the browser, and adds rows while scrolling.
+Searching descriptions asks the server and fetches the next page ahead of time. A resume stays in the
+open tab and nothing is saved in the browser.
 
 ## Resume matching
 
