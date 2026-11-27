@@ -1,5 +1,4 @@
 import asyncio
-from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
@@ -60,10 +59,7 @@ async def match_resume(
     term: Annotated[
         str | None, Query(pattern=r"^(spring|summer|fall|winter) 20\d\d$")
     ] = None,
-    graduation: Annotated[
-        str | None,
-        Query(pattern=r"^20\d\d-(0[1-9]|1[0-2])$", description="month, as YYYY-MM"),
-    ] = None,
+    graduation: Annotated[int | None, Query(ge=2000, le=2100)] = None,
     category: Annotated[list[Category] | None, Query()] = None,
     location: Annotated[str | None, Query(min_length=2, max_length=100)] = None,
     remote: bool | None = None,
@@ -72,7 +68,7 @@ async def match_resume(
     """Rank postings against a resume, sent as a PDF or plain text body.
 
     The resume is read in memory to answer this request and then discarded.
-    Postings are left out when they clearly state a degree, term or graduation date that the
+    Postings are left out when they clearly state a degree, term or graduation year that the
     applicant does not meet. Full-time postings are compared by title only, without senior titles.
     """
     matcher = request.app.state.matcher
@@ -100,7 +96,7 @@ async def match_resume(
         limit,
         degree=degree,
         term=term,
-        graduation=date.fromisoformat(f"{graduation}-01") if graduation else None,
+        graduation_year=graduation,
         allowed_ids=allowed,
     )
     skills = find_skills(resume)

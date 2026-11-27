@@ -188,13 +188,11 @@ async def test_descriptions_that_state_a_degree_or_graduation_date_decide(
 
     assert set(titles(await post(api))) == {title for title, *_ in STATED}
     bachelors = {"degree": "bachelors"}
-    assert set(titles(await post(api, graduation="2028-05", **bachelors))) == {
+    assert set(titles(await post(api, graduation=2028, **bachelors))) == {
         "Research Intern",
         "Strategy Intern",
     }
-    assert titles(await post(api, graduation="2029-05", **bachelors)) == [
-        "Strategy Intern"
-    ]
+    assert titles(await post(api, graduation=2029, **bachelors)) == ["Strategy Intern"]
     assert "Research Intern" in titles(await post(api, degree="mba"))
 
     stated = {m["job"]["title"]: m for m in (await post(api)).json()["matches"]}
@@ -278,8 +276,8 @@ async def test_bad_uploads_are_rejected(api, body, content_type, expected):
         "degree=none",
         "limit=0",
         "kind=all",
-        "graduation=2029-13",
-        "graduation=May 2029",
+        "graduation=2029-05",
+        "graduation=1999",
     ],
 )
 async def test_bad_parameters_are_rejected(api, query):

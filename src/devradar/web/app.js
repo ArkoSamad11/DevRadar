@@ -6,7 +6,7 @@ const CATEGORY_NAMES = {
 };
 const DEGREE_NAMES = { bachelors: "Bachelor's", masters: "Master's", mba: "MBA", phd: "PhD" };
 const SOURCE_NAMES = { greenhouse: "Greenhouse", ashby: "Ashby", lever: "Lever" };
-const GRADUATION_MONTH = /^20\d\d-(0[1-9]|1[0-2])$/;
+const GRADUATION_YEARS = 7;
 const PAGE_SIZE = 30;
 const MAX_BYTES = 1_000_000;
 
@@ -306,8 +306,7 @@ async function matchResume() {
   if (!state.resume) return;
   const request = ++state.request;
   const params = new URLSearchParams({ kind: $("kind").value, limit: 50 });
-  for (const id of ["degree", "term"]) if ($(id).value) params.set(id, $(id).value);
-  if (GRADUATION_MONTH.test($("graduation").value)) params.set("graduation", $("graduation").value);
+  for (const id of ["degree", "term", "graduation"]) if ($(id).value) params.set(id, $(id).value);
   setStatus("Matching…");
   let result;
   try {
@@ -407,11 +406,10 @@ function start() {
     state.resume = { body: $("text").value, type: "text/plain", name: "Pasted text" };
     matchResume();
   });
-  for (const id of ["degree", "term", "kind"]) $(id).addEventListener("change", matchResume);
-  // Typing a year fires a change for every digit, so half-typed dates are skipped.
-  $("graduation").addEventListener("change", ({ target }) => {
-    if (!target.value || GRADUATION_MONTH.test(target.value)) matchResume();
-  });
+  const thisYear = new Date().getFullYear();
+  $("graduation").append(...Array.from({ length: GRADUATION_YEARS }, (_, i) =>
+    element("option", { value: thisYear + i, textContent: thisYear + i })));
+  for (const id of ["degree", "term", "graduation", "kind"]) $(id).addEventListener("change", matchResume);
   $("clear").addEventListener("click", clearResume);
 
   new IntersectionObserver((entries) => entries[0].isIntersecting && showMore(),

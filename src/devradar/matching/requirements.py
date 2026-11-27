@@ -147,8 +147,13 @@ class Requirements:
         held = {degree, Degree.masters} if degree is Degree.mba else {degree}
         return not self.degrees or not self.degrees.isdisjoint(held)
 
-    def admits_graduation(self, graduation: date) -> bool:
-        return self.graduation is None or self.graduation.allows(graduation)
+    def admits_graduation(self, year: int) -> bool:
+        # Without a month, any month of the year that fits is enough.
+        window = self.graduation
+        return window is None or (
+            (window.earliest is None or window.earliest.year <= year)
+            and (window.latest is None or window.latest.year >= year)
+        )
 
 
 NONE_STATED = Requirements(frozenset(), None)

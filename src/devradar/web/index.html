@@ -30,10 +30,10 @@
     <div class="fields">
       <label>Degree<select id="degree"><option value="">Any</option><option value="bachelors">Bachelor's</option><option value="masters">Master's</option><option value="mba">MBA</option><option value="phd">PhD</option></select></label>
       <label>Term<select id="term"><option value="">Any</option></select></label>
-      <label>Graduating<input id="graduation" type="month" min="2020-01" max="2099-12" placeholder="YYYY-MM" pattern="20[0-9]{2}-(0[1-9]|1[0-2])"></label>
+      <label>Graduating<select id="graduation"><option value="">Any</option></select></label>
       <label>Jobs<select id="kind"><option value="internships">Internships</option><option value="full_time">Full-time (titles only)</option></select></label>
     </div>
-    <p class="quiet">Hides postings that state a degree, term or graduation date you don't meet.</p>
+    <p class="quiet">Hides postings that state a degree, term or graduation year you don't meet.</p>
     <p id="resume-status" class="status" role="status" aria-live="polite"></p>
     <div id="profile" hidden>
       <p class="file"><span id="resume-name"></span> <button id="clear" type="button" class="link">Remove</button></p>

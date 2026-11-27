@@ -2,7 +2,6 @@ import asyncio
 import re
 import time
 from dataclasses import dataclass
-from datetime import date
 
 import numpy as np
 from psycopg_pool import AsyncConnectionPool
@@ -56,7 +55,7 @@ class PostingIndex:
         limit: int,
         degree: Degree | None = None,
         term: str | None = None,
-        graduation: date | None = None,
+        graduation_year: int | None = None,
         allowed_ids: set[int] | None = None,
     ) -> list[Match]:
         columns, values = model.vectorize(resume)
@@ -67,7 +66,7 @@ class PostingIndex:
             weights=self.values * dense[self.columns],
             minlength=len(self.job_ids),
         )
-        eligible = self._eligible(degree, term, graduation, allowed_ids)
+        eligible = self._eligible(degree, term, graduation_year, allowed_ids)
         if not eligible.any():
             return []
 
@@ -86,7 +85,7 @@ class PostingIndex:
         self,
         degree: Degree | None,
         term: str | None,
-        graduation: date | None,
+        graduation_year: int | None,
         allowed_ids: set[int] | None,
     ) -> np.ndarray:
         eligible = np.ones(len(self.job_ids), dtype=bool)
@@ -94,9 +93,9 @@ class PostingIndex:
             eligible &= np.array([r.admits_degree(degree) for r in self.requirements])
         if term:
             eligible &= np.array([not named or term in named for named in self.terms])
-        if graduation:
+        if graduation_year:
             eligible &= np.array(
-                [r.admits_graduation(graduation) for r in self.requirements]
+                [r.admits_graduation(graduation_year) for r in self.requirements]
             )
         if allowed_ids is not None:
             eligible &= np.isin(self.job_ids, list(allowed_ids))

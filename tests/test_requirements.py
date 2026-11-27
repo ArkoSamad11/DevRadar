@@ -169,9 +169,18 @@ def test_unstated_requirements_admit_everyone_and_share_one_object():
     unstated = read_requirements("Software Intern", "We build things.")
     assert unstated is NONE_STATED
     assert all(unstated.admits_degree(degree) for degree in Degree)
-    assert unstated.admits_graduation(date(2029, 5, 1))
+    assert unstated.admits_graduation(2029)
 
 
 def test_an_mba_counts_as_a_masters_but_not_the_reverse():
     assert Requirements(frozenset({Degree.masters}), None).admits_degree(Degree.mba)
     assert not Requirements(frozenset({Degree.mba}), None).admits_degree(Degree.masters)
+
+
+def test_a_graduation_year_is_admitted_if_any_month_fits():
+    by_june = Requirements(frozenset(), GraduationWindow(None, date(2028, 6, 28)))
+    assert by_june.admits_graduation(2028) and not by_june.admits_graduation(2029)
+    from_december = Requirements(frozenset(), GraduationWindow(date(2027, 12, 1), None))
+    assert from_december.admits_graduation(
+        2027
+    ) and not from_december.admits_graduation(2026)
