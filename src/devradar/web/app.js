@@ -63,16 +63,20 @@ function svgIcon(path) {
   return svg;
 }
 
-function hue(text) {
-  let hash = 0;
-  for (const char of text) hash = (hash * 31 + char.charCodeAt(0)) | 0;
-  return `hue-${Math.abs(hash) % 8}`;
-}
+// Rows show their most specific category, with the same glyph and color as its filter chip.
+const CATEGORY_PRIORITY = [
+  "quant", "ml_ai", "security", "data_science", "operations_research", "math", "systems", "software",
+];
+const categoryHue = (slug) => `hue-${Object.keys(CATEGORY_NAMES).indexOf(slug) % 8}`;
 
-function initials(name) {
-  const words = name.replace(/[^\p{L}\p{N} ]/gu, " ").split(/\s+/).filter(Boolean);
-  if (!words.length) return "?";
-  return (words.length > 1 ? words[0][0] + words[1][0] : words[0].slice(0, 2)).toUpperCase();
+function tile(job) {
+  const slug = CATEGORY_PRIORITY.find((c) => job.categories.includes(c));
+  return element("span", {
+    className: `tile ${slug ? categoryHue(slug) : "hue-7"}`,
+    textContent: slug ? CATEGORY_GLYPHS[slug] : "•",
+    title: slug ? CATEGORY_NAMES[slug] : "Other",
+    ariaHidden: "true",
+  });
 }
 
 function places(job) {
@@ -153,15 +157,12 @@ function tagList(names, className) {
 }
 
 function renderRow({ job, match, others = [] }) {
-  const title = webLink(job.url, job.title);
-  title.className = "title";
+  const title = element("button", { type: "button", className: "title", textContent: job.title });
+  title.addEventListener("click", () => openDetail(job, match, others));
   const categories = job.categories.map((c) => CATEGORY_NAMES[c]).join(", ");
   const company = element("p", { className: "company" }, job.company.name);
   if (categories) company.append(element("span", { className: "sep", textContent: " · " }), categories);
-  const role = element("div", { className: "role" },
-    element("span", { className: `tile ${hue(job.company.slug)}`, textContent: initials(job.company.name),
-      ariaHidden: "true" }),
-    element("div", { className: "role-text" }, title, company));
+  const role = element("div", { className: "role" }, tile(job), element("div", { className: "role-text" }, title, company));
 
   const where = element("span", { className: "where", textContent: places(job) });
   if (job.remote && !/remote/i.test(where.textContent)) {
@@ -178,21 +179,91 @@ function renderRow({ job, match, others = [] }) {
       title: "Half word similarity, half role fit. Not a probability.",
     }));
   }
-  const apply = webLink(job.url, "");
-  apply.className = "apply";
-  apply.title = `Open on ${SOURCE_NAMES[job.source] || "the employer's site"}`;
-  apply.append(svgIcon("M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"),
-    element("span", { className: "hidden", textContent: `Apply: ${job.title} at ${job.company.name}` }));
+  const more = element("span", { className: "more", ariaHidden: "true" }, svgIcon("m9 6 6 6-6 6"));
 
-  const row = element("li", {},
-    element("div", { className: "job" }, role, element("div", { className: "facts" }, where, when, score), apply));
+  const row = element("li", { className: "clickable" },
+    element("div", { className: "job" }, role, element("div", { className: "facts" }, where, when, score), more));
+  // The whole row opens the panel; the title button is what keyboards and screen readers use.
+  row.addEventListener("click", (event) => {
+    if (!event.target.closest("a, button, summary")) title.click();
+  });
   if (others.length) {
-    const links = others.map((other, i) => webLink(other.url, `posting ${i + 2}`));
-    row.append(element("p", { className: "repeats", textContent: `Posted ${others.length + 1} times: ` }));
-    row.lastChild.append(...links.flatMap((link, i) => (i ? [", ", link] : [link])));
+    row.append(element("p", { className: "repeats", textContent: `Posted ${others.length + 1} times` }));
   }
   if (match) renderReasons(row, match);
   return row;
+}
+
+const details = new Map();
+const MAX_CACHED_DETAILS = 40;
+let detailRequest = null;
+
+async function loadDetail(id) {
+  if (details.has(id)) return details.get(id);
+  detailRequest?.abort();
+  detailRequest = new AbortController();
+  const response = await fetch(`/jobs/${id}`, { signal: detailRequest.signal });
+  if (!response.ok) throw new Error("Couldn't load this posting.");
+  const detail = await response.json();
+  if (details.size >= MAX_CACHED_DETAILS) details.delete(details.keys().next().value);
+  details.set(id, detail);
+  return detail;
+}
+
+// Descriptions are stored as one line of text, so paragraphs are restored at common headings.
+const HEADINGS = new RegExp(
+  "\\s(?=(?:About (?:the|this|us|you|our)|What you(?:'|’)ll|What we|Who you|Who we|Your role|The role|" +
+  "Responsibilities|Requirements|Qualifications|Minimum qualifications|Preferred qualifications|" +
+  "Basic qualifications|Nice to have|Bonus|Benefits|Compensation|Perks|Why join|How to apply|" +
+  "Location|Salary|Pay)\\b|[A-Z][\\w'’&/-]*(?: [A-Za-z][\\w'’&/-]*){0,3}:\\s)", "g");
+
+function paragraphs(text) {
+  const merged = [];
+  let carry = "";
+  for (const part of text.split(HEADINGS)) {
+    // A multi-word heading can split more than once; its pieces rejoin the text they introduce.
+    const joined = `${carry} ${part}`.trim();
+    if (joined.split(" ").length < 8) carry = joined;
+    else { merged.push(joined); carry = ""; }
+  }
+  if (carry) merged.push(carry);
+  return merged.map((part) => element("p", { textContent: part }));
+}
+
+async function openDetail(job, match, others) {
+  const dialog = $("detail");
+  $("detail-title").textContent = job.title;
+  $("detail-company").replaceChildren(tile(job), element("span", {},
+    element("strong", { textContent: job.company.name }),
+    element("span", { className: "quiet-inline", textContent: ` · ${posted(job.listed_at)}` })));
+  const facts = [job.locations.join("; ") || "Location not given", job.remote ? "Remote" : null,
+    job.categories.map((c) => CATEGORY_NAMES[c]).join(", ")].filter(Boolean);
+  $("detail-facts").replaceChildren(...facts.map((fact) => element("li", { textContent: fact })));
+  const asked = match ? requirements(match) : "";
+  $("detail-asks").hidden = !asked;
+  $("detail-asks").textContent = asked ? `Open to ${asked}` : "";
+  const apply = $("detail-apply");
+  apply.href = /^https?:\/\//i.test(job.url) ? job.url : "#";
+  apply.textContent = `Apply on ${SOURCE_NAMES[job.source] || "the employer's site"}`;
+  apply.append(svgIcon("M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"));
+  const repeats = $("detail-repeats");
+  repeats.hidden = !others.length;
+  repeats.replaceChildren(...(others.length ? [`Also posted ${others.length} more time${others.length > 1 ? "s" : ""}: `,
+    ...others.flatMap((other, i) => [i ? ", " : "", webLink(other.url, `posting ${i + 2}`)])] : []));
+  $("detail-body").replaceChildren(element("p", { className: "quiet", textContent: "Loading description…" }));
+  if (!dialog.open) dialog.showModal();
+  dialog.scrollTop = 0;
+  state.detailId = job.id;
+  try {
+    const detail = await loadDetail(job.id);
+    if (state.detailId !== job.id) return;
+    $("detail-body").replaceChildren(...(detail.description
+      ? paragraphs(detail.description)
+      : [element("p", { className: "quiet", textContent: "No description is stored for this posting. Open the application to read it." })]));
+  } catch (error) {
+    if (error.name === "AbortError" || state.detailId !== job.id) return;
+    $("detail-body").replaceChildren(element("p", { className: "quiet", textContent: error.message }));
+  }
 }
 
 function monthName(iso) {
@@ -475,9 +546,9 @@ function start() {
   applyTheme(document.documentElement.dataset.theme || "system");
   for (const name of THEMES) $(`theme-${name}`).addEventListener("click", () => chooseTheme(name));
 
-  $("categories").append(...Object.entries(CATEGORY_NAMES).map(([slug, name], i) => {
+  $("categories").append(...Object.entries(CATEGORY_NAMES).map(([slug, name]) => {
     const chip = element("button", { type: "button" },
-      element("span", { className: `glyph hue-${i % 8}`, textContent: CATEGORY_GLYPHS[slug], ariaHidden: "true" }),
+      element("span", { className: `glyph ${categoryHue(slug)}`, textContent: CATEGORY_GLYPHS[slug], ariaHidden: "true" }),
       name, element("span", { className: "count" }));
     chip.dataset.slug = slug;
     chip.setAttribute("aria-pressed", "false");
@@ -525,6 +596,12 @@ function start() {
     element("option", { value: thisYear + i, textContent: thisYear + i })));
   for (const id of ["degree", "term", "graduation", "kind"]) $(id).addEventListener("change", matchResume);
   $("clear").addEventListener("click", clearResume);
+
+  const dialog = $("detail");
+  $("detail-close").addEventListener("click", () => dialog.close());
+  // A click on the dimmed backdrop lands on the dialog itself.
+  dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog.close(); });
+  dialog.addEventListener("close", () => { state.detailId = null; });
 
   new IntersectionObserver((entries) => entries[0].isIntersecting && showMore(),
     { rootMargin: "600px" }).observe($("sentinel"));

@@ -21,7 +21,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     app = FastAPI(
-        title="DevRadar",
+        title="Pingly API",
         description="Search tech internship postings collected from company job boards.",
         lifespan=lifespan,
     )

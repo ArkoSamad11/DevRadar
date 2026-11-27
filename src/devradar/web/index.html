@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DevRadar</title>
+<title>Pingly · Tech internships the hour they open</title>
 <meta name="description" content="Tech internships collected hourly from company job boards, matched to your resume.">
 <meta name="color-scheme" content="light dark">
 <script src="/theme.js"></script>
@@ -15,10 +15,9 @@
 <header class="bar">
   <a class="brand" href="/">
     <svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="5.5"/><path d="M12 12 19 5"/><circle class="blip" cx="16.5" cy="8" r="1.6"/></svg>
-    DevRadar
+    Pingly
   </a>
   <nav aria-label="Site">
-    <a href="/docs">API</a>
     <a href="https://github.com/ArkoSamad11/DevRadar">GitHub</a>
     <div class="theme" role="radiogroup" aria-label="Theme">
       <button id="theme-system" type="button" role="radio" aria-checked="true" title="Match system">
@@ -109,6 +108,21 @@
     <div id="sentinel" aria-hidden="true"></div>
   </section>
 </main>
+<dialog id="detail" class="drawer" aria-labelledby="detail-title">
+  <div class="drawer-head">
+    <div id="detail-company" class="drawer-company"></div>
+    <button id="detail-close" type="button" class="close" title="Close">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      <span class="hidden">Close</span>
+    </button>
+  </div>
+  <h2 id="detail-title"></h2>
+  <ul id="detail-facts" class="drawer-facts"></ul>
+  <p id="detail-asks" class="drawer-asks" hidden></p>
+  <a id="detail-apply" class="button primary apply-link" target="_blank" rel="noopener noreferrer" href="#">Apply</a>
+  <p id="detail-repeats" class="quiet" hidden></p>
+  <div id="detail-body" class="drawer-body"></div>
+</dialog>
 <footer class="foot">
   <p>Built from public job boards. Postings link to the employer's own page.</p>
 </footer>

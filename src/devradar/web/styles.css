@@ -207,8 +207,13 @@ button.link { border: 0; padding: 0; background: none; color: var(--accent); fon
 .tile { flex: none; width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center;
   font-size: 13px; font-weight: 700; letter-spacing: -0.02em; }
 .role-text { min-width: 0; }
-.title { display: block; color: var(--ink); font-weight: 600; text-decoration: none; overflow-wrap: anywhere; line-height: 1.35; }
-.title:hover { color: var(--accent); }
+.title { display: block; padding: 0; border: 0; background: none; text-align: left; font: inherit; color: var(--ink);
+  font-weight: 600; overflow-wrap: anywhere; line-height: 1.35; cursor: pointer; }
+.clickable { cursor: pointer; }
+.clickable:hover .title { color: var(--accent); }
+.more { display: grid; place-items: center; width: 34px; height: 34px; color: var(--faint); }
+.more svg { width: 18px; height: 18px; }
+.clickable:hover .more { color: var(--accent); }
 .company { margin: 1px 0 0; color: var(--muted); font-size: 13.5px; overflow-wrap: anywhere; }
 .company .sep { color: var(--faint); }
 .where { color: var(--muted); font-size: 13.5px; overflow-wrap: anywhere; line-height: 1.35; }
@@ -217,11 +222,31 @@ button.link { border: 0; padding: 0; background: none; color: var(--accent); fon
 .when.fresh { color: var(--fresh); font-weight: 600; }
 .fit { display: inline-grid; place-items: center; min-width: 46px; height: 26px; padding: 0 8px; border-radius: 999px;
   font-size: 13px; font-weight: 700; background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent-line); }
-.apply { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--line);
-  color: var(--muted); }
-.apply:hover { color: var(--accent); border-color: var(--accent-line); }
-.apply svg { width: 16px; height: 16px; }
 .repeats { margin: 8px 0 0 50px; color: var(--muted); font-size: 13px; }
+
+/* Posting panel */
+.drawer { position: fixed; inset: 0 0 0 auto; margin: 0; width: min(560px, 100vw); max-width: 100vw; height: 100dvh;
+  max-height: 100dvh; padding: 22px 26px 32px; border: 0; border-left: 1px solid var(--line); background: var(--surface);
+  color: var(--ink); box-shadow: -24px 0 60px rgba(0, 0, 0, 0.25); overflow-y: auto; }
+.drawer[open] { animation: slide-in 0.22s ease-out; }
+.drawer::backdrop { background: rgba(5, 6, 12, 0.45); backdrop-filter: blur(2px); }
+@keyframes slide-in { from { transform: translateX(32px); opacity: 0; } to { transform: none; opacity: 1; } }
+.drawer-head { display: flex; align-items: center; gap: 12px; }
+.drawer-company { display: flex; align-items: center; gap: 10px; min-width: 0; font-size: 14px; }
+.quiet-inline { color: var(--muted); }
+.close { margin-left: auto; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--muted); cursor: pointer; }
+.close:hover { color: var(--ink); }
+.close svg { width: 18px; height: 18px; }
+.drawer h2 { margin: 18px 0 10px; font-size: 22px; line-height: 1.25; letter-spacing: -0.02em; }
+.drawer-facts { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; }
+.drawer-facts li { padding: 3px 10px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line);
+  color: var(--muted); font-size: 13px; }
+.drawer-asks { margin: 12px 0 0; padding: 8px 12px; border-radius: 10px; background: var(--accent-soft); font-size: 14px; }
+.apply-link { margin-top: 18px; text-decoration: none; }
+.apply-link svg { width: 16px; height: 16px; }
+.drawer-body { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); font-size: 14.5px; line-height: 1.65; }
+.drawer-body p { margin: 0 0 12px; }
 .why { display: grid; grid-template-columns: max-content 1fr; gap: 6px 12px; margin: 12px 0 0 50px; font-size: 13px; }
 .why dt { color: var(--faint); font-weight: 500; }
 .why dd { margin: 0; }
@@ -253,9 +278,10 @@ button.link { border: 0; padding: 0; background: none; color: var(--accent); fon
   .banner-actions .button { flex: 1; justify-content: center; }
   .why, .repeats, .notice, .similar { margin-left: 0; }
   .why { grid-template-columns: 1fr; gap: 2px; }
+  .drawer { padding: 18px 18px 28px; border-left: 0; }
   .why dd { margin-bottom: 6px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .dot { animation: none; }
+  .dot, .drawer[open] { animation: none; }
   .chips button { transition: none; }
 }
