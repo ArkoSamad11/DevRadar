@@ -127,14 +127,13 @@ async def _write_posting(
 ) -> int:
     cursor = await conn.execute(
         """
-        INSERT INTO jobs (posting_key, company_id, title, url, is_internship, posted_at, countries)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO jobs (posting_key, company_id, title, url, is_internship, posted_at)
+        VALUES (%s, %s, %s, %s, %s, %s)
         ON CONFLICT (posting_key) DO UPDATE
             SET title = EXCLUDED.title,
                 url = EXCLUDED.url,
                 is_internship = EXCLUDED.is_internship,
-                posted_at = EXCLUDED.posted_at,
-                countries = EXCLUDED.countries
+                posted_at = EXCLUDED.posted_at
         RETURNING id
         """,
         (
@@ -144,7 +143,6 @@ async def _write_posting(
             posting.url,
             internship,
             posting.posted_at,
-            posting_countries(posting.locations, posting.country_hints),
         ),
     )
     (job_id,) = await cursor.fetchone()
@@ -181,6 +179,9 @@ async def _write_posting(
         )
 
     await replace_categories(conn, job_id, categorize(posting.title))
+    await replace_countries(
+        conn, job_id, posting_countries(posting.locations, posting.country_hints)
+    )
     return job_id
 
 
@@ -195,6 +196,17 @@ async def replace_categories(
         """,
         (job_id, sorted(categories)),
     )
+
+
+async def replace_countries(
+    conn: psycopg.AsyncConnection, job_id: int, countries: list[str]
+) -> None:
+    await conn.execute("DELETE FROM job_countries WHERE job_id = %s", (job_id,))
+    async with conn.cursor() as cursor:
+        await cursor.executemany(
+            "INSERT INTO job_countries (job_id, country) VALUES (%s, %s)",
+            [(job_id, country) for country in countries],
+        )
 
 
 async def forget_content_hash(

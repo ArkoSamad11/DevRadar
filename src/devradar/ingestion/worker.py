@@ -382,8 +382,12 @@ async def _run_locked(
 
 
 async def fill_missing_countries(conn: psycopg.AsyncConnection) -> int:
-    """Works out countries for postings stored before countries were recorded."""
-    filled = 0
+    """Works out countries for postings that have none recorded.
+
+    Postings whose locations name no country are read again on every run, which costs a little
+    parsing but no writes.
+    """
+    filled, after = 0, 0
     while True:
         cursor = await conn.execute(
             """
@@ -391,29 +395,30 @@ async def fill_missing_countries(conn: psycopg.AsyncConnection) -> int:
             JOIN LATERAL (
                 SELECT source, raw FROM job_sources WHERE job_id = j.id ORDER BY id LIMIT 1
             ) s ON true
-            WHERE j.countries IS NULL
+            WHERE j.id > %s AND j.status = 'active'
+              AND NOT EXISTS (SELECT 1 FROM job_countries c WHERE c.job_id = j.id)
+            ORDER BY j.id
             LIMIT %s
             """,
-            (COUNTRY_BATCH,),
+            (after, COUNTRY_BATCH),
         )
         rows = await cursor.fetchall()
         if not rows:
             return filled
-        updates = []
+        after = rows[-1][0]
+        found = []
         for job_id, source, raw in rows:
             try:
                 posting = ADAPTERS[source].parse(raw)
             except ValidationError:
-                updates.append(([], job_id))
                 continue
-            updates.append(
-                (posting_countries(posting.locations, posting.country_hints), job_id)
-            )
+            countries = posting_countries(posting.locations, posting.country_hints)
+            found += [(job_id, country) for country in countries]
+            filled += bool(countries)
         async with conn.transaction(), conn.cursor() as cursor:
             await cursor.executemany(
-                "UPDATE jobs SET countries = %s WHERE id = %s", updates
+                "INSERT INTO job_countries (job_id, country) VALUES (%s, %s)", found
             )
-        filled += len(updates)
 
 
 def _is_retryable(error: Exception) -> bool:

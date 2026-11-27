@@ -17,7 +17,9 @@ router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 # Postings whose locations do not say where they are stay in, like other unstated requirements.
 IN_COUNTRY = sql.SQL(
-    "(cardinality(coalesce(j.countries, '{}')) = 0 OR %(country)s = ANY(j.countries))"
+    "(NOT EXISTS (SELECT 1 FROM job_countries jc WHERE jc.job_id = j.id)"
+    " OR EXISTS (SELECT 1 FROM job_countries jc"
+    " WHERE jc.job_id = j.id AND jc.country = %(country)s))"
 )
 CountryCode = Annotated[
     str | None,
@@ -39,7 +41,9 @@ SUMMARY_COLUMNS = sql.SQL("""
         WHERE jc.job_id = j.id ORDER BY cat.slug
     ) AS categories,
     (SELECT s.source FROM job_sources s WHERE s.job_id = j.id ORDER BY s.id LIMIT 1) AS source,
-    coalesce(j.countries, '{}') AS countries
+    ARRAY(
+        SELECT jc.country FROM job_countries jc WHERE jc.job_id = j.id ORDER BY 1
+    ) AS countries
 """)
 
 

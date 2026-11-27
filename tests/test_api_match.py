@@ -214,9 +214,12 @@ async def test_location_remote_and_category_filters(api):
 
 async def test_country_filter_keeps_postings_that_do_not_say(api, migrated_db):
     with psycopg.connect(migrated_db) as conn:
-        conn.execute("UPDATE jobs SET countries = '{US}' WHERE title LIKE 'Quant%'")
         conn.execute(
-            "UPDATE jobs SET countries = '{GB}' WHERE title = 'Trading Intern'"
+            "INSERT INTO job_countries SELECT id, 'US' FROM jobs WHERE title LIKE 'Quant%'"
+        )
+        conn.execute(
+            "INSERT INTO job_countries SELECT id, 'GB' FROM jobs"
+            " WHERE title = 'Trading Intern'"
         )
     in_britain = set(titles(await post(api, country="GB")))
     assert "Trading Intern" in in_britain and not any(

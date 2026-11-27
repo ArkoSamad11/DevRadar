@@ -6,7 +6,7 @@ import psycopg
 from devradar.config import settings
 from devradar.ingestion.classify import categorize, is_internship
 from devradar.ingestion.countries import posting_countries
-from devradar.ingestion.store import replace_categories
+from devradar.ingestion.store import replace_categories, replace_countries
 from devradar.ingestion.worker import ADAPTERS
 
 
@@ -23,7 +23,9 @@ async def reclassify(conn: psycopg.AsyncConnection) -> ReclassifyStats:
     stats = ReclassifyStats()
     cursor = await conn.execute(
         """
-        SELECT j.id, j.title, j.description, j.is_internship, j.countries, s.source, s.raw,
+        SELECT j.id, j.title, j.description, j.is_internship,
+               ARRAY(SELECT country FROM job_countries WHERE job_id = j.id ORDER BY 1),
+               s.source, s.raw,
                coalesce(array_agg(c.slug) FILTER (WHERE c.slug IS NOT NULL), '{}')
         FROM jobs j
         JOIN LATERAL (
@@ -52,9 +54,7 @@ async def reclassify(conn: psycopg.AsyncConnection) -> ReclassifyStats:
             employment_type = posting.employment_type
             countries = posting_countries(posting.locations, posting.country_hints)
             if countries != stored_countries:
-                await conn.execute(
-                    "UPDATE jobs SET countries = %s WHERE id = %s", (countries, job_id)
-                )
+                await replace_countries(conn, job_id, countries)
                 stats.countries_changed += 1
             internship = is_internship(title, employment_type)
             categories = categorize(title, description)

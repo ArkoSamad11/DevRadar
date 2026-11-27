@@ -230,7 +230,11 @@ async def test_countries_are_stored_and_backfilled_for_older_postings(
             ]
         ],
     )
-    stored = "SELECT posting_key, countries FROM jobs ORDER BY id"
+    stored = """
+        SELECT posting_key, ARRAY(
+            SELECT country FROM job_countries WHERE job_id = jobs.id ORDER BY 1
+        ) FROM jobs ORDER BY id
+    """
     expected = [
         ("greenhouse:1", ["GB"]),
         ("greenhouse:2", []),
@@ -239,8 +243,8 @@ async def test_countries_are_stored_and_backfilled_for_older_postings(
     assert query(migrated_db, stored) == expected
 
     with psycopg.connect(migrated_db) as conn:
-        conn.execute("UPDATE jobs SET countries = NULL")
+        conn.execute("DELETE FROM job_countries")
     async with await psycopg.AsyncConnection.connect(migrated_db) as conn:
-        assert await fill_missing_countries(conn) == 3
+        assert await fill_missing_countries(conn) == 2
         assert await fill_missing_countries(conn) == 0
     assert query(migrated_db, stored) == expected
