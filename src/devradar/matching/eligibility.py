@@ -25,6 +25,8 @@ _SEASON_YEAR = re.compile(
 _YEAR_SEASON = re.compile(
     rf"(20\d\d)\s+({_SEASON}(?:\s*/\s*{_SEASON})*)", re.IGNORECASE
 )
+_SEASON_WORD = re.compile(rf"\b{_SEASON}\b", re.IGNORECASE)
+_YEAR = re.compile(r"\b20(\d\d)\b|'(\d\d)\b")
 _SENIOR = re.compile(
     r"\b(?:senior|sr|staff|principal|lead|manager|director|head|vp|vice president|chief|architect"
     r"|distinguished|fellow|expert|partner|supervisor|ii|iii|iv|v)\b",
@@ -43,13 +45,23 @@ def degrees_named(title: str) -> set[Degree]:
 
 
 def terms_named(title: str) -> set[str]:
+    """Terms such as "summer 2027"; a season alone, as in "(SPRING) Analyst Intern", is "spring"."""
     found = [(seasons, year) for seasons, year in _SEASON_YEAR.findall(title)]
     found += [(seasons, year) for year, seasons in _YEAR_SEASON.findall(title)]
+    if not found:
+        seasons = "/".join(_SEASON_WORD.findall(title))
+        years = {f"20{a or b}" for a, b in _YEAR.findall(title)}
+        if seasons:
+            found = [(seasons, year) for year in years or {""}]
     return {
-        f"{season.strip().lower().replace('autumn', 'fall')} {year}"
+        f"{season.strip().lower().replace('autumn', 'fall')} {year}".strip()
         for seasons, year in found
         for season in seasons.split("/")
     }
+
+
+def admits_term(named: set[str] | frozenset, term: str) -> bool:
+    return not named or term in named or term.split()[0] in named
 
 
 def is_senior(title: str) -> bool:

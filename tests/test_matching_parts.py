@@ -95,7 +95,11 @@ def test_degrees_named(title, expected):
         ("Computer Vision Intern, Fall/Winter 2026", {"fall 2026", "winter 2026"}),
         ("Autumn 2026 Co-op", {"fall 2026"}),
         ("Software Engineer Intern 2027", set()),
-        ("Summer Intern", set()),
+        ("Summer Intern", {"summer"}),
+        ("Machine Learning Intern (Winter/Spring)", {"winter", "spring"}),
+        ("Summer Intern 2027 - Quantitative Trader", {"summer 2027"}),
+        ("Summer '27 Intern - Mechanical Engineering", {"summer 2027"}),
+        ("Summernaut Program Intern", set()),
     ],
 )
 def test_terms_named(title, expected):
