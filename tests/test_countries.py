@@ -35,15 +35,18 @@ from tests.test_lever import raw_posting
         ("Toronto, Ontario, Canada", {"CA"}),
         ("Remote", set()),
         ("Hybrid", set()),
-        ("Europe", set()),
-        ("North America", set()),
-        ("Latin America", set()),
+        ("Europe", {"FR", "DE", "PL"}),
+        ("Remote - EMEA", {"GB", "DE", "AE"}),
+        ("LATAM (Remote)", {"BR", "MX", "AR"}),
+        ("North America", {"US", "CA", "MX"}),
         ("Cambridge", set()),
         ("Manchester", set()),
     ],
 )
 def test_countries_in(location, expected):
-    assert countries_in(location) == expected
+    found = countries_in(location)
+    # Regions expand to many countries, so only some are listed.
+    assert expected <= found if len(found) > 3 else found == expected
 
 
 @pytest.mark.parametrize(

@@ -109,6 +109,78 @@ _CODES = {
     "ISR": "IL",
     "POL": "PL",
 }
+_EUROPE = [
+    "GB",
+    "IE",
+    "FR",
+    "DE",
+    "NL",
+    "BE",
+    "LU",
+    "CH",
+    "AT",
+    "ES",
+    "PT",
+    "IT",
+    "GR",
+    "SE",
+    "NO",
+    "DK",
+    "FI",
+    "IS",
+    "PL",
+    "CZ",
+    "SK",
+    "HU",
+    "RO",
+    "BG",
+    "RS",
+    "HR",
+    "SI",
+    "EE",
+    "LV",
+    "LT",
+    "UA",
+    "CY",
+    "MT",
+]
+_REGIONS = {
+    "europe|european union|eu": _EUROPE,
+    "emea": _EUROPE + ["IL", "AE", "SA", "QA", "EG", "MA", "NG", "KE", "ZA", "TR"],
+    "apac|asia[- ]pacific|asia": [
+        "IN",
+        "PK",
+        "BD",
+        "LK",
+        "CN",
+        "HK",
+        "TW",
+        "JP",
+        "KR",
+        "SG",
+        "MY",
+        "TH",
+        "VN",
+        "PH",
+        "ID",
+        "AU",
+        "NZ",
+    ],
+    "latam|latin america|south america": [
+        "MX",
+        "BR",
+        "AR",
+        "CL",
+        "CO",
+        "PE",
+        "UY",
+        "CR",
+        "GT",
+        "SV",
+        "PA",
+    ],
+    "north america": ["US", "CA", "MX"],
+}
 _US_STATES = {
     "AL": "alabama",
     "AK": "alaska",
@@ -249,6 +321,7 @@ _STATE_CODES = re.compile(
 _US_STATE_NAMES = _words("|".join(_US_STATES.values()))
 _PROVINCE_NAMES = _words("|".join(_PROVINCES.values()))
 _CITY_PATTERNS = {code: _words(names) for code, names in _CITIES.items()}
+_REGION_PATTERNS = [(_words(names), set(codes)) for names, codes in _REGIONS.items()]
 _PLACES = re.compile(r";|\||•|·|\s/\s|(?<!,)\s(?i:or)\s|\sand\s|\s&\s")
 # "New Mexico" and "Georgia, US" would otherwise read as the countries Mexico and Georgia.
 _US_PREFIXED = re.compile(r"new mexico|new england|west jordan", re.IGNORECASE)
@@ -276,6 +349,11 @@ def countries_in(location: str) -> set[str]:
 def _place_countries(place: str) -> set[str]:
     cities, country_codes = _cities(place)
     found = _named(place)
+    if not found:
+        # "Remote - Europe" rules out the US without naming one country.
+        for pattern, codes in _REGION_PATTERNS:
+            if pattern.search(place):
+                found |= codes
     for code in _STATE_CODES.findall(place):
         if code not in country_codes:
             found.add("US" if code in _US_STATES else "CA")
