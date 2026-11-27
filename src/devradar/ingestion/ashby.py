@@ -4,6 +4,7 @@ import httpx
 from pydantic import BaseModel, ValidationError
 
 from devradar.ingestion.classify import is_remote
+from devradar.ingestion.countries import country_code
 from devradar.ingestion.models import Board, BoardSnapshot, MalformedResponse, Posting
 from devradar.ingestion.parsing import (
     NonEmptyStr,
@@ -17,8 +18,22 @@ API_BASE = "https://api.ashbyhq.com/posting-api/job-board"
 DESCRIPTION_KEYS = {"descriptionHtml", "descriptionPlain"}
 
 
+class _PostalAddress(BaseModel):
+    addressCountry: str | None = None
+
+
+class _Address(BaseModel):
+    postalAddress: _PostalAddress | None = None
+
+    @property
+    def country(self) -> str | None:
+        name = self.postalAddress.addressCountry if self.postalAddress else None
+        return country_code(name) if name else None
+
+
 class _SecondaryLocation(BaseModel):
     location: str = ""
+    address: _Address | None = None
 
 
 class _Job(BaseModel):
@@ -26,6 +41,7 @@ class _Job(BaseModel):
     title: NonEmptyStr
     jobUrl: NonEmptyStr
     location: str | None = None
+    address: _Address | None = None
     secondaryLocations: list[_SecondaryLocation] = []
     publishedAt: datetime | None = None
     employmentType: str | None = None
@@ -76,6 +92,13 @@ def parse_posting(raw: dict) -> Posting:
     if job.isRemote and not any(is_remote(location) for location in locations):
         locations.append("Remote")
 
+    hints = {
+        (location or "").strip(): address.country
+        for location, address in [(job.location, job.address)]
+        + [(entry.location, entry.address) for entry in job.secondaryLocations]
+        if address and address.country
+    }
+
     if job.descriptionPlain:
         description = collapse_whitespace(job.descriptionPlain)
     else:
@@ -91,4 +114,5 @@ def parse_posting(raw: dict) -> Posting:
         employment_type=job.employmentType,
         raw={key: value for key, value in raw.items() if key not in DESCRIPTION_KEYS},
         description=description,
+        country_hints=hints,
     )

@@ -52,6 +52,8 @@ function matchesFilters(job) {
   const search = $("search").value.trim().toLowerCase();
   const location = $("location").value.trim().toLowerCase();
   if ($("remote").checked && !job.remote) return false;
+  const country = $("country").value;
+  if (country && job.countries.length && !job.countries.includes(country)) return false;
   if (state.categories.size && !job.categories.some((c) => state.categories.has(c))) return false;
   if (location && !job.locations.some((l) => l.toLowerCase().includes(location))) return false;
   if (!search) return true;
@@ -78,6 +80,7 @@ function searchFeed() {
   for (const category of state.categories) params.append("category", category);
   if ($("location").value.trim().length > 1) params.set("location", $("location").value.trim());
   if ($("remote").checked) params.set("remote", "true");
+  if ($("country").value) params.set("country", $("country").value);
 
   async function load(cursor) {
     if (cursor) params.set("cursor", cursor);
@@ -254,6 +257,7 @@ async function loadInternships() {
     return;
   }
   fillTerms();
+  fillCountries();
   if (state.view === "all") refresh();
   const total = `${state.jobs.length.toLocaleString()} internships`;
   $("freshness").textContent = total;
@@ -285,6 +289,18 @@ function fillTerms() {
   $("term").value = chosen;
 }
 
+const regionNames = new Intl.DisplayNames(["en"], { type: "region" });
+
+function fillCountries() {
+  const counts = new Map();
+  for (const job of state.jobs) for (const c of job.countries) counts.set(c, (counts.get(c) || 0) + 1);
+  const chosen = $("country").value;
+  $("country").replaceChildren(element("option", { value: "", textContent: "Any" }),
+    ...[...counts].sort((a, b) => b[1] - a[1]).map(([code, count]) =>
+      element("option", { value: code, textContent: `${regionNames.of(code)} (${count.toLocaleString()})` })));
+  $("country").value = chosen;
+}
+
 function setStatus(message, isError = false) {
   $("resume-status").textContent = message;
   $("resume-status").classList.toggle("error", isError);
@@ -306,7 +322,7 @@ async function matchResume() {
   if (!state.resume) return;
   const request = ++state.request;
   const params = new URLSearchParams({ kind: $("kind").value, limit: 50 });
-  for (const id of ["degree", "term", "graduation"]) if ($(id).value) params.set(id, $(id).value);
+  for (const id of ["degree", "term", "graduation", "country"]) if ($(id).value) params.set(id, $(id).value);
   setStatus("Matching…");
   let result;
   try {
@@ -382,6 +398,8 @@ function start() {
   $("search").addEventListener("input", () => ($("descriptions").checked ? debouncedSearch() : soon()));
   $("location").addEventListener("input", soon);
   $("remote").addEventListener("change", refresh);
+  // Matches are ranked on the server, so a new country asks for a new top 50.
+  $("country").addEventListener("change", () => (state.resume ? matchResume() : refresh()));
   $("descriptions").addEventListener("change", refresh);
   const debouncedSearch = debounce(refresh, 350);
 

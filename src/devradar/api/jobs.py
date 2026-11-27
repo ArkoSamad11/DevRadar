@@ -15,6 +15,15 @@ from devradar.api.schemas import Category, CompanyRef, JobDetail, JobPage, JobSu
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
+# Postings whose locations do not say where they are stay in, like other unstated requirements.
+IN_COUNTRY = sql.SQL(
+    "(cardinality(coalesce(j.countries, '{}')) = 0 OR %(country)s = ANY(j.countries))"
+)
+CountryCode = Annotated[
+    str | None,
+    Query(pattern=r"^[A-Z]{2}$", description="ISO 3166 code, e.g. US; unstated kept"),
+]
+
 SUMMARY_COLUMNS = sql.SQL("""
     j.id, j.title, j.url, j.is_internship, j.status, j.listed_at,
     c.name AS company_name, c.slug AS company_slug,
@@ -29,7 +38,8 @@ SUMMARY_COLUMNS = sql.SQL("""
         JOIN categories cat ON cat.id = jc.category_id
         WHERE jc.job_id = j.id ORDER BY cat.slug
     ) AS categories,
-    (SELECT s.source FROM job_sources s WHERE s.job_id = j.id ORDER BY s.id LIMIT 1) AS source
+    (SELECT s.source FROM job_sources s WHERE s.job_id = j.id ORDER BY s.id LIMIT 1) AS source,
+    coalesce(j.countries, '{}') AS countries
 """)
 
 
@@ -40,6 +50,7 @@ async def list_jobs(
     category: Annotated[list[Category] | None, Query()] = None,
     location: Annotated[str | None, Query(min_length=2, max_length=100)] = None,
     remote: bool | None = None,
+    country: CountryCode = None,
     company: Annotated[str | None, Query(max_length=100)] = None,
     internships_only: bool = True,
     include_closed: bool = False,
@@ -84,6 +95,9 @@ async def list_jobs(
                 " WHERE l.job_id = j.id AND l.is_remote)"
             ).format(negate=sql.SQL("" if remote else "NOT"))
         )
+    if country:
+        params["country"] = country
+        conditions.append(IN_COUNTRY)
     if company:
         params["company"] = company
         conditions.append(sql.SQL("c.slug = %(company)s"))
@@ -168,4 +182,5 @@ def summary_from_row(row: dict) -> JobSummary:
         listed_at=row["listed_at"],
         url=row["url"],
         source=row["source"],
+        countries=row["countries"],
     )

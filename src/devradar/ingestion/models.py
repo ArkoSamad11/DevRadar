@@ -36,6 +36,10 @@ class Posting:
     employment_type: str | None
     raw: dict = field(compare=False, hash=False)
     description: str | None = None
+    # Location -> ISO country code, where the ATS reports one.
+    country_hints: dict[str, str] = field(
+        default_factory=dict, compare=False, hash=False
+    )
 
     @property
     def posting_key(self) -> str:

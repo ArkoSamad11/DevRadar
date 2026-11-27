@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, Query, Request, status
 from psycopg import sql
 from psycopg.rows import dict_row
 
-from devradar.api.jobs import SUMMARY_COLUMNS, summary_from_row
+from devradar.api.jobs import IN_COUNTRY, SUMMARY_COLUMNS, CountryCode, summary_from_row
 from devradar.api.pagination import contains_pattern
 from devradar.api.schemas import (
     Category,
@@ -63,6 +63,7 @@ async def match_resume(
     category: Annotated[list[Category] | None, Query()] = None,
     location: Annotated[str | None, Query(min_length=2, max_length=100)] = None,
     remote: bool | None = None,
+    country: CountryCode = None,
     limit: Annotated[int, Query(ge=1, le=50)] = 20,
 ) -> MatchResponse:
     """Rank postings against a resume, sent as a PDF or plain text body.
@@ -87,7 +88,7 @@ async def match_resume(
     index = await matcher.indexes.get(internships)
     async with request.app.state.pool.connection() as conn:
         allowed = await ids_passing_filters(
-            conn, internships, category, location, remote
+            conn, internships, category, location, remote, country
         )
     matches = await asyncio.to_thread(
         index.rank,
@@ -160,7 +161,12 @@ def score_roles(model: RoleModel, resume: str) -> list[RoleScore]:
 
 
 async def ids_passing_filters(
-    conn, internships: bool, category, location: str | None, remote: bool | None
+    conn,
+    internships: bool,
+    category,
+    location: str | None,
+    remote: bool | None,
+    country: str | None,
 ) -> set[int] | None:
     conditions, params = [], {"internships": internships}
     if category:
@@ -193,6 +199,9 @@ async def ids_passing_filters(
                 ) = %(remote)s
             """)
         )
+    if country:
+        params["country"] = country
+        conditions.append(IN_COUNTRY)
     if not conditions:
         return None
     query = sql.SQL("""

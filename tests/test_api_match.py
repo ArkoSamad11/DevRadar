@@ -212,6 +212,19 @@ async def test_location_remote_and_category_filters(api):
     assert titles(await post(api, category="math")) == []
 
 
+async def test_country_filter_keeps_postings_that_do_not_say(api, migrated_db):
+    with psycopg.connect(migrated_db) as conn:
+        conn.execute("UPDATE jobs SET countries = '{US}' WHERE title LIKE 'Quant%'")
+        conn.execute(
+            "UPDATE jobs SET countries = '{GB}' WHERE title = 'Trading Intern'"
+        )
+    in_britain = set(titles(await post(api, country="GB")))
+    assert "Trading Intern" in in_britain and not any(
+        title.startswith("Quant") for title in in_britain
+    )
+    assert "Trading Intern" not in titles(await post(api, country="US"))
+
+
 async def test_full_time_matches_leave_out_senior_titles(api):
     assert titles(await post(api, kind="full_time")) == ["Quantitative Trader"]
 

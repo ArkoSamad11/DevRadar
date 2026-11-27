@@ -35,6 +35,9 @@ class JobSummary(BaseModel):
     listed_at: datetime
     url: str
     source: str
+    countries: list[str] = Field(
+        description="ISO codes; empty if the locations don't say"
+    )
 
 
 class JobPage(BaseModel):

@@ -3,6 +3,7 @@ import pytest
 
 from devradar.ingestion.models import Board, Posting
 from devradar.ingestion.store import store_description, store_postings
+from devradar.ingestion.worker import fill_missing_countries
 
 pytestmark = pytest.mark.anyio
 
@@ -205,3 +206,41 @@ async def test_edited_inline_description_counts_as_a_change(migrated_db, board):
     assert (unchanged.unchanged, unchanged.inline_descriptions) == (1, 0)
     assert (edited.updated, edited.inline_descriptions) == (1, 1)
     assert query(migrated_db, "SELECT description FROM jobs") == [("v2",)]
+
+
+def greenhouse_raw(external_id, locations):
+    return {
+        "absolute_url": f"https://boards.greenhouse.io/acme/jobs/{external_id}",
+        "location": {"name": "; ".join(locations)},
+    }
+
+
+async def test_countries_are_stored_and_backfilled_for_older_postings(
+    migrated_db, board
+):
+    await store(
+        migrated_db,
+        board,
+        [
+            posting(n, locations=places, **greenhouse_raw(n, places))
+            for n, places in [
+                ("1", ("London",)),
+                ("2", ("Remote",)),
+                ("3", ("Toronto, ON", "Austin, TX")),
+            ]
+        ],
+    )
+    stored = "SELECT posting_key, countries FROM jobs ORDER BY id"
+    expected = [
+        ("greenhouse:1", ["GB"]),
+        ("greenhouse:2", []),
+        ("greenhouse:3", ["CA", "US"]),
+    ]
+    assert query(migrated_db, stored) == expected
+
+    with psycopg.connect(migrated_db) as conn:
+        conn.execute("UPDATE jobs SET countries = NULL")
+    async with await psycopg.AsyncConnection.connect(migrated_db) as conn:
+        assert await fill_missing_countries(conn) == 3
+        assert await fill_missing_countries(conn) == 0
+    assert query(migrated_db, stored) == expected

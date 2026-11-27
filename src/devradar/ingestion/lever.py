@@ -4,6 +4,7 @@ import httpx
 from pydantic import BaseModel, ValidationError
 
 from devradar.ingestion.classify import is_remote
+from devradar.ingestion.countries import country_code
 from devradar.ingestion.models import Board, BoardSnapshot, MalformedResponse, Posting
 from devradar.ingestion.parsing import (
     NonEmptyStr,
@@ -47,6 +48,7 @@ class _Posting(BaseModel):
     categories: _Categories | None = None
     createdAt: int | None = None
     workplaceType: str | None = None
+    country: str | None = None
     descriptionPlain: str | None = None
     lists: list[_ListSection] | None = None
 
@@ -92,6 +94,11 @@ def parse_posting(raw: dict) -> Posting:
     ):
         locations.append("Remote")
 
+    # Lever's country belongs to the main location, not to every listed one.
+    primary = (categories.location or "").strip()
+    code = country_code(posting.country) if posting.country else None
+    hints = {primary: code} if primary and code else {}
+
     sections = [collapse_whitespace(posting.descriptionPlain or "")]
     for section in posting.lists or []:
         sections.append(
@@ -112,4 +119,5 @@ def parse_posting(raw: dict) -> Posting:
         employment_type=categories.commitment,
         raw={key: value for key, value in raw.items() if key not in DESCRIPTION_KEYS},
         description=" ".join(section for section in sections if section),
+        country_hints=hints,
     )

@@ -186,6 +186,31 @@ async def test_category_filter_matches_any_requested_category(api, catalog):
     assert titles(response) == ["Quant Trader Intern", "Security Engineer Intern"]
 
 
+async def test_country_filter_keeps_postings_that_do_not_say(api, migrated_db):
+    await seed(
+        migrated_db,
+        make_board(migrated_db, "initech"),
+        [
+            posting("i1", "London Intern", 1, ("London",)),
+            posting("i2", "Austin Intern", 2, ("Austin, TX",)),
+            posting("i3", "Anywhere Intern", 3, ("Remote",)),
+            posting("i4", "Two Country Intern", 4, ("Toronto, ON", "Seattle, WA")),
+        ],
+    )
+    assert titles(await api.get("/jobs?country=US")) == [
+        "Austin Intern",
+        "Anywhere Intern",
+        "Two Country Intern",
+    ]
+    assert titles(await api.get("/jobs?country=GB")) == [
+        "London Intern",
+        "Anywhere Intern",
+    ]
+    items = (await api.get("/jobs")).json()["items"]
+    assert [item["countries"] for item in items] == [["GB"], ["US"], [], ["CA", "US"]]
+    assert (await api.get("/jobs?country=usa")).status_code == 422
+
+
 async def test_location_remote_and_company_filters(api, catalog):
     assert titles(await api.get("/jobs?location=new york")) == [
         "Software Engineer Intern",

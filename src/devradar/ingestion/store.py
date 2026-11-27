@@ -5,6 +5,7 @@ from psycopg import sql
 from psycopg.types.json import Jsonb
 
 from devradar.ingestion.classify import categorize, is_internship, is_remote
+from devradar.ingestion.countries import posting_countries
 from devradar.ingestion.models import Board, Posting
 
 MISSES_BEFORE_CLOSE = 2
@@ -126,13 +127,14 @@ async def _write_posting(
 ) -> int:
     cursor = await conn.execute(
         """
-        INSERT INTO jobs (posting_key, company_id, title, url, is_internship, posted_at)
-        VALUES (%s, %s, %s, %s, %s, %s)
+        INSERT INTO jobs (posting_key, company_id, title, url, is_internship, posted_at, countries)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (posting_key) DO UPDATE
             SET title = EXCLUDED.title,
                 url = EXCLUDED.url,
                 is_internship = EXCLUDED.is_internship,
-                posted_at = EXCLUDED.posted_at
+                posted_at = EXCLUDED.posted_at,
+                countries = EXCLUDED.countries
         RETURNING id
         """,
         (
@@ -142,6 +144,7 @@ async def _write_posting(
             posting.url,
             internship,
             posting.posted_at,
+            posting_countries(posting.locations, posting.country_hints),
         ),
     )
     (job_id,) = await cursor.fetchone()

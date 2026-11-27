@@ -50,7 +50,7 @@ Lists return `{"items": [...], "limit": n, "next_cursor": "..."}`; pass `next_cu
 for the next page. Cursors are keyset-based, so pages stay consistent while new postings arrive.
 
 ```bash
-curl 'localhost:8000/jobs?q=python&category=ml_ai&location=new%20york&limit=5'
+curl 'localhost:8000/jobs?q=python&category=ml_ai&country=US&location=new%20york&limit=5'
 ```
 
 On a fixed copy of the real data (80,038 jobs), p95 latency fell from 367 ms to 8 ms for companies
@@ -109,6 +109,13 @@ operations research and math. `scripts/evaluate_classifier.py` scores the rules 
 hand-labeled real titles (`tests/fixtures/classifier_sample.csv`), tuned on one half and measured on
 the other. After changing the rules, `uv run devradar-reclassify` re-applies them to stored postings
 without refetching anything.
+
+Each posting's countries come from the ATS where it reports them (Ashby addresses, Lever's main
+location) and otherwise from the location text: country names and codes, U.S. states, Canadian
+provinces and unambiguous cities. Places such as "Remote", "Europe" or "Cambridge" stay unknown, and
+`country=` filters keep postings whose country is unknown. Against 29,224 locations whose country
+the ATS reports, the text rules agree 97.0% of the time, disagree 0.04% and give no answer 3.0%;
+that set was also used to write the rules.
 
 ## Role model
 

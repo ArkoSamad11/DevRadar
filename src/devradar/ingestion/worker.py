@@ -9,10 +9,12 @@ from dataclasses import dataclass, field
 import httpx
 import psycopg
 from psycopg_pool import AsyncConnectionPool
+from pydantic import ValidationError
 
 from devradar.config import settings
 from devradar.discovery.run import USER_AGENT
 from devradar.ingestion.ashby import AshbyAdapter
+from devradar.ingestion.countries import posting_countries
 from devradar.ingestion.greenhouse import GreenhouseAdapter
 from devradar.ingestion.lever import LeverAdapter
 from devradar.ingestion.models import Adapter, Board, MalformedResponse, NotModified
@@ -26,6 +28,8 @@ from devradar.ingestion.store import (
     store_description,
     store_postings,
 )
+
+COUNTRY_BATCH = 1000
 
 ADAPTERS: dict[str, Adapter] = {
     "greenhouse": GreenhouseAdapter(),
@@ -342,6 +346,7 @@ async def _run_locked(
 ) -> RunSummary:
     started = time.perf_counter()
     async with pool.connection() as conn:
+        await fill_missing_countries(conn)
         cursor = await conn.execute(
             "INSERT INTO ingestion_runs (trigger) VALUES (%s) RETURNING id", (trigger,)
         )
@@ -374,6 +379,41 @@ async def _run_locked(
             (status, run_id),
         )
     return RunSummary(run_id, status, outcomes, time.perf_counter() - started)
+
+
+async def fill_missing_countries(conn: psycopg.AsyncConnection) -> int:
+    """Works out countries for postings stored before countries were recorded."""
+    filled = 0
+    while True:
+        cursor = await conn.execute(
+            """
+            SELECT j.id, s.source, s.raw FROM jobs j
+            JOIN LATERAL (
+                SELECT source, raw FROM job_sources WHERE job_id = j.id ORDER BY id LIMIT 1
+            ) s ON true
+            WHERE j.countries IS NULL
+            LIMIT %s
+            """,
+            (COUNTRY_BATCH,),
+        )
+        rows = await cursor.fetchall()
+        if not rows:
+            return filled
+        updates = []
+        for job_id, source, raw in rows:
+            try:
+                posting = ADAPTERS[source].parse(raw)
+            except ValidationError:
+                updates.append(([], job_id))
+                continue
+            updates.append(
+                (posting_countries(posting.locations, posting.country_hints), job_id)
+            )
+        async with conn.transaction(), conn.cursor() as cursor:
+            await cursor.executemany(
+                "UPDATE jobs SET countries = %s WHERE id = %s", updates
+            )
+        filled += len(updates)
 
 
 def _is_retryable(error: Exception) -> bool:
