@@ -145,7 +145,7 @@ uv run python -m devradar.roles.train --compare  # compare training data choices
 `GET /` serves a page built from plain HTML, CSS and JavaScript (`src/devradar/web/`). It loads every
 internship once (about 200 KB compressed), filters them in the browser, and adds rows while scrolling.
 Searching descriptions asks the server and fetches the next page ahead of time. A resume stays in the
-open tab and nothing is saved in the browser.
+open tab, and the browser keeps only the light or dark theme choice.
 
 ## Resume matching
 

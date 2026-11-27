@@ -4,6 +4,12 @@ const CATEGORY_NAMES = {
   software: "Software", ml_ai: "ML & AI", data_science: "Data science", systems: "Systems",
   security: "Security", quant: "Quant", operations_research: "Operations research", math: "Math",
 };
+const CATEGORY_GLYPHS = {
+  software: "<>", ml_ai: "AI", data_science: "DS", systems: "OS",
+  security: "SC", quant: "Q", operations_research: "OR", math: "∑",
+};
+const THEMES = ["system", "light", "dark"];
+const DAY_MS = 86_400_000;
 const DEGREE_NAMES = { bachelors: "Bachelor's", masters: "Master's", mba: "MBA", phd: "PhD" };
 const SOURCE_NAMES = { greenhouse: "Greenhouse", ashby: "Ashby", lever: "Lever" };
 const GRADUATION_YEARS = 7;
@@ -34,18 +40,45 @@ function webLink(url, text) {
   return link;
 }
 
-function daysAgo(iso) {
-  const days = Math.floor((Date.now() - new Date(iso)) / 86_400_000);
-  if (days <= 0) return "today";
-  if (days === 1) return "yesterday";
-  if (days < 60) return `${days} days ago`;
-  return `${Math.floor(days / 30)} months ago`;
+function posted(iso) {
+  const hours = Math.floor((Date.now() - new Date(iso)) / 3_600_000);
+  if (hours < 1) return "Just now";
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 60) return `${days}d ago`;
+  return `${Math.floor(days / 30)}mo ago`;
+}
+
+function isFresh(iso) {
+  return Date.now() - new Date(iso) < DAY_MS;
+}
+
+function svgIcon(path) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  const shape = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  shape.setAttribute("d", path);
+  svg.append(shape);
+  return svg;
+}
+
+function hue(text) {
+  let hash = 0;
+  for (const char of text) hash = (hash * 31 + char.charCodeAt(0)) | 0;
+  return `hue-${Math.abs(hash) % 8}`;
+}
+
+function initials(name) {
+  const words = name.replace(/[^\p{L}\p{N} ]/gu, " ").split(/\s+/).filter(Boolean);
+  if (!words.length) return "?";
+  return (words.length > 1 ? words[0][0] + words[1][0] : words[0].slice(0, 2)).toUpperCase();
 }
 
 function places(job) {
-  const shown = job.locations.slice(0, 3).join("; ");
-  const extra = job.locations.length - 3;
-  return extra > 0 ? `${shown} and ${extra} more` : shown;
+  const shown = job.locations.slice(0, 2).join("; ");
+  const extra = job.locations.length - 2;
+  return extra > 0 ? `${shown} +${extra} more` : shown || "Location not given";
 }
 
 function matchesFilters(job) {
@@ -120,24 +153,42 @@ function tagList(names, className) {
 }
 
 function renderRow({ job, match, others = [] }) {
-  const side = element("span", { className: "side" });
-  if (match) {
-    side.append(element("span", {
-      className: "fit number",
-      textContent: `Fit ${match.score.toFixed(2)}`,
-      title: "Half word similarity, half role fit. Not a probability.",
-    }), " · ");
+  const title = webLink(job.url, job.title);
+  title.className = "title";
+  const categories = job.categories.map((c) => CATEGORY_NAMES[c]).join(", ");
+  const company = element("p", { className: "company" }, job.company.name);
+  if (categories) company.append(element("span", { className: "sep", textContent: " · " }), categories);
+  const role = element("div", { className: "role" },
+    element("span", { className: `tile ${hue(job.company.slug)}`, textContent: initials(job.company.name),
+      ariaHidden: "true" }),
+    element("div", { className: "role-text" }, title, company));
+
+  const where = element("span", { className: "where", textContent: places(job) });
+  if (job.remote && !/remote/i.test(where.textContent)) {
+    where.append(" ", element("span", { className: "remote", textContent: "Remote" }));
   }
-  side.append(daysAgo(job.listed_at));
-  const details = [job.company.name, places(job), job.remote ? "Remote" : null,
-    job.categories.map((c) => CATEGORY_NAMES[c]).join(", "), SOURCE_NAMES[job.source]];
+  const when = element("span", {
+    className: `when${isFresh(job.listed_at) ? " fresh" : ""}`, textContent: posted(job.listed_at),
+    title: new Date(job.listed_at).toLocaleString(),
+  });
+  const score = element("span", { className: "score" });
+  if (match) {
+    score.append(element("span", {
+      className: "fit number", textContent: match.score.toFixed(2),
+      title: "Half word similarity, half role fit. Not a probability.",
+    }));
+  }
+  const apply = webLink(job.url, "");
+  apply.className = "apply";
+  apply.title = `Open on ${SOURCE_NAMES[job.source] || "the employer's site"}`;
+  apply.append(svgIcon("M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"),
+    element("span", { className: "hidden", textContent: `Apply: ${job.title} at ${job.company.name}` }));
+
   const row = element("li", {},
-    element("div", { className: "row" }, webLink(job.url, job.title), side),
-    element("p", { className: "meta", textContent: details.filter(Boolean).join(" · ") }));
+    element("div", { className: "job" }, role, element("div", { className: "facts" }, where, when, score), apply));
   if (others.length) {
     const links = others.map((other, i) => webLink(other.url, `posting ${i + 2}`));
-    row.append(element("p", { className: "quiet repeats",
-      textContent: `Posted ${others.length + 1} times: ` }));
+    row.append(element("p", { className: "repeats", textContent: `Posted ${others.length + 1} times: ` }));
     row.lastChild.append(...links.flatMap((link, i) => (i ? [", ", link] : [link])));
   }
   if (match) renderReasons(row, match);
@@ -177,7 +228,7 @@ function renderReasons(row, match) {
   }
   const others = match.similar_postings.length;
   if (others) {
-    row.append(element("p", { className: "quiet",
+    row.append(element("p", { className: "similar",
       textContent: `${others} more posting${others > 1 ? "s" : ""} with this title` }));
   }
 }
@@ -214,6 +265,7 @@ function refresh() {
   $("tab-all").setAttribute("aria-selected", String(!matching));
   $("tab-matches").setAttribute("aria-selected", String(matching));
   $("descriptions-option").hidden = matching;
+  document.querySelector(".explore").classList.toggle("matching", matching);
 
   const onServer = !matching && $("descriptions").checked && $("search").value.trim().length > 1;
   if (onServer) {
@@ -258,17 +310,28 @@ async function loadInternships() {
   }
   fillTerms();
   fillCountries();
+  countCategories();
   if (state.view === "all") refresh();
-  const total = `${state.jobs.length.toLocaleString()} internships`;
+  const fresh = state.jobs.filter((job) => isFresh(job.listed_at)).length;
+  const total = `${state.jobs.length.toLocaleString()} internships · ${fresh.toLocaleString()} new today`;
   $("freshness").textContent = total;
   try {
     const health = await (await fetch("/health")).json();
     const minutes = Math.round((Date.now() - new Date(health.last_ingestion_at)) / 60_000);
-    const age = minutes < 90 ? `${Math.max(minutes, 1)} min` : `${Math.round(minutes / 60)} hours`;
+    const age = minutes < 90 ? `${Math.max(minutes, 1)} min` : `${Math.round(minutes / 60)} h`;
     $("freshness").textContent = health.status === "stale"
-      ? `${total}, last updated ${age} ago (updates are delayed)`
-      : `${total}, updated ${age} ago`;
+      ? `${total} · last updated ${age} ago, updates are delayed`
+      : `${total} · updated ${age} ago`;
   } catch { /* The list is still usable without its age. */ }
+}
+
+function countCategories() {
+  const counts = new Map();
+  for (const job of state.jobs) for (const c of job.categories) counts.set(c, (counts.get(c) || 0) + 1);
+  for (const chip of $("categories").children) {
+    const count = counts.get(chip.dataset.slug) || 0;
+    chip.querySelector(".count").textContent = count >= 1000 ? `${(count / 1000).toFixed(1)}k` : String(count);
+  }
 }
 
 function fillTerms() {
@@ -295,7 +358,7 @@ function fillCountries() {
   const counts = new Map();
   for (const job of state.jobs) for (const c of job.countries) counts.set(c, (counts.get(c) || 0) + 1);
   const chosen = $("country").value;
-  $("country").replaceChildren(element("option", { value: "", textContent: "Any" }),
+  $("country").replaceChildren(element("option", { value: "", textContent: "Any country" }),
     ...[...counts].sort((a, b) => b[1] - a[1]).map(([code, count]) =>
       element("option", { value: code, textContent: `${regionNames.of(code)} (${count.toLocaleString()})` })));
   $("country").value = chosen;
@@ -359,12 +422,39 @@ function renderProfile(result) {
   $("roles").replaceChildren(...result.roles.slice(0, 3).map((role) => element("li", {},
     element("span", { textContent: CATEGORY_NAMES[role.role] }),
     element("span", { className: "number", textContent: `${Math.round(role.score * 100)}%` }),
-    element("meter", { value: role.score, min: 0, max: 1, ariaLabel: CATEGORY_NAMES[role.role] }),
+    roleBar(role),
     role.evidence.length
       ? element("span", { className: "evidence", textContent: `because of ${role.evidence.join(", ")}` })
       : null)));
   $("skills").replaceChildren(...(result.skills.length ? result.skills : ["None recognized"]).map(
     (skill) => element("li", { textContent: skill })));
+}
+
+function roleBar(role) {
+  const fill = element("span", { className: "bar-fill" });
+  fill.style.width = `${Math.max(2, Math.round(role.score * 100))}%`;
+  const track = element("span", { className: "bar-track" }, fill);
+  track.setAttribute("role", "meter");
+  track.setAttribute("aria-label", CATEGORY_NAMES[role.role]);
+  track.setAttribute("aria-valuemin", "0");
+  track.setAttribute("aria-valuemax", "100");
+  track.setAttribute("aria-valuenow", String(Math.round(role.score * 100)));
+  return track;
+}
+
+function applyTheme(theme) {
+  if (theme === "system") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = theme;
+  for (const name of THEMES) $(`theme-${name}`).setAttribute("aria-checked", String(name === theme));
+}
+
+function chooseTheme(theme) {
+  applyTheme(theme);
+  // The theme is the only thing the page remembers.
+  try {
+    if (theme === "system") localStorage.removeItem("devradar-theme");
+    else localStorage.setItem("devradar-theme", theme);
+  } catch { /* Without storage the choice lasts until the tab closes. */ }
 }
 
 function clearResume() {
@@ -382,8 +472,14 @@ function clearResume() {
 }
 
 function start() {
-  $("categories").append(...Object.entries(CATEGORY_NAMES).map(([slug, name]) => {
-    const chip = element("button", { type: "button", textContent: name });
+  applyTheme(document.documentElement.dataset.theme || "system");
+  for (const name of THEMES) $(`theme-${name}`).addEventListener("click", () => chooseTheme(name));
+
+  $("categories").append(...Object.entries(CATEGORY_NAMES).map(([slug, name], i) => {
+    const chip = element("button", { type: "button" },
+      element("span", { className: `glyph hue-${i % 8}`, textContent: CATEGORY_GLYPHS[slug], ariaHidden: "true" }),
+      name, element("span", { className: "count" }));
+    chip.dataset.slug = slug;
     chip.setAttribute("aria-pressed", "false");
     chip.addEventListener("click", () => {
       const pressed = !state.categories.delete(slug);

@@ -24,7 +24,11 @@ PAGE_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "Cache-Control": "no-cache",
 }
-ASSETS = {"app.js": "text/javascript", "styles.css": "text/css"}
+ASSETS = {
+    "app.js": "text/javascript",
+    "theme.js": "text/javascript",
+    "styles.css": "text/css",
+}
 
 router = APIRouter()
 _summaries = TypeAdapter(list[JobSummary])

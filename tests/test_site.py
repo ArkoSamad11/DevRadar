@@ -64,7 +64,7 @@ async def test_snapshot_is_compressed_only_when_accepted(api):
     assert json.loads(gzip.decompress(raw)) == plain.json()
 
 
-@pytest.mark.parametrize("path", ["/", "/app.js", "/styles.css"])
+@pytest.mark.parametrize("path", ["/", "/app.js", "/theme.js", "/styles.css"])
 async def test_pages_are_served_with_a_strict_policy(api, path):
     response = await api.get(path)
     assert response.status_code == 200
@@ -84,9 +84,12 @@ def test_page_has_no_inline_code_and_script_never_injects_html():
     assert not re.search(
         r"innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(", script
     )
-    assert not re.search(
-        r"localStorage|sessionStorage|indexedDB|document\.cookie", script
-    )
+    scripts = script + (WEB / "theme.js").read_text()
+    assert not re.search(r"sessionStorage|indexedDB|document\.cookie", scripts)
+    # The theme choice is the only thing kept in the browser.
+    assert set(re.findall(r"localStorage\.\w+\(([^,)]*)", scripts)) == {
+        '"devradar-theme"'
+    }
 
 
 def test_every_element_the_script_uses_exists():
