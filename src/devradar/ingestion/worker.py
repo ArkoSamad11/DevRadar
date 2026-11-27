@@ -19,6 +19,7 @@ from devradar.ingestion.greenhouse import GreenhouseAdapter
 from devradar.ingestion.lever import LeverAdapter
 from devradar.ingestion.models import Adapter, Board, MalformedResponse, NotModified
 from devradar.ingestion.pacing import Pacer
+from devradar.ingestion.retention import prune
 from devradar.ingestion.store import (
     DescriptionTask,
     StoreResult,
@@ -380,6 +381,7 @@ async def _run_locked(
             "UPDATE ingestion_runs SET status = %s, finished_at = now() WHERE id = %s",
             (status, run_id),
         )
+        await prune(conn)
     return RunSummary(run_id, status, outcomes, time.perf_counter() - started)
 
 

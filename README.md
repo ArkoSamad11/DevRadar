@@ -37,13 +37,13 @@ mkdir .venv.nosync && ln -s .venv.nosync .venv
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /jobs` | Search postings, newest first. Filters: `q` (title or description), `category` (repeatable), `location`, `remote`, `company`, `internships_only` (default true), `include_closed`. |
+| `GET /jobs` | Search postings, newest first. Filters: `q` (title or description), `category` (repeatable), `location`, `remote`, `country`, `company`, `internships_only` (default true), `include_closed` (closed in the last 30 days). |
 | `GET /jobs/{id}` | One posting with its description, locations, categories and sources. |
 | `POST /match` | Rank postings against a resume (PDF or plain text, up to 1 MB). Filters: `kind`, `degree`, `term`, `category`, `location`, `remote`. |
 | `GET /internships` | Every active internship in one cacheable response, revalidated with an ETag. |
 | `GET /companies` | Tracked companies with active job and internship counts; `q`, `hiring_interns`. |
 | `GET /sources` | Board health per ATS, including discovered-but-unsupported sources. |
-| `GET /ingestion-runs` | Pipeline run history with per-run totals. |
+| `GET /ingestion-runs` | The last 14 days of pipeline runs with per-run totals. |
 | `GET /health` | Database health, plus `stale` when ingestion has missed three intervals. |
 
 Lists return `{"items": [...], "limit": n, "next_cursor": "..."}`; pass `next_cursor` back as `cursor`
@@ -89,6 +89,10 @@ Modified` with no body and costs no parsing or writes. In a 15-minute window onl
 changed, and a conditional sweep downloaded 5 MB instead of 351 MB.
 
 `docker compose up -d` runs the database and the scheduler as a `worker` container.
+
+After each run, history older than 14 days and postings closed for more than 30 days are deleted, a
+batch at a time, so storage stays near the size of the open postings instead of growing every hour
+(the fetch log alone added about 5.5 MB a day).
 
 Only one ingestion run executes at a time (a Postgres advisory lock), so a manual
 `devradar-ingest` started during a scheduled run exits instead of repeating its work. Use
