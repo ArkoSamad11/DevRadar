@@ -29,7 +29,9 @@ from devradar.ingestion.store import (
     store_postings,
 )
 
-COUNTRY_BATCH = 1000
+COUNTRY_BATCH = 500
+# About 3 MB of write-ahead log; the whole first backfill wrote 35 MB, near the volume's free space.
+COUNTRY_ROWS_PER_RUN = 6000
 
 ADAPTERS: dict[str, Adapter] = {
     "greenhouse": GreenhouseAdapter(),
@@ -381,44 +383,51 @@ async def _run_locked(
     return RunSummary(run_id, status, outcomes, time.perf_counter() - started)
 
 
-async def fill_missing_countries(conn: psycopg.AsyncConnection) -> int:
-    """Works out countries for postings that have none recorded.
+async def fill_missing_countries(
+    conn: psycopg.AsyncConnection, max_rows: int = COUNTRY_ROWS_PER_RUN
+) -> int:
+    """Works out countries for postings that have none recorded, internships first.
 
-    Postings whose locations name no country are read again on every run, which costs a little
-    parsing but no writes.
+    Writes stop after about max_rows rows so a large backfill spreads over several runs instead
+    of filling the database volume with write-ahead log. Postings whose locations name no country
+    are read again on every run, which costs a little parsing but no writes.
     """
-    filled, after = 0, 0
-    while True:
-        cursor = await conn.execute(
-            """
-            SELECT j.id, s.source, s.raw FROM jobs j
-            JOIN LATERAL (
-                SELECT source, raw FROM job_sources WHERE job_id = j.id ORDER BY id LIMIT 1
-            ) s ON true
-            WHERE j.id > %s AND j.status = 'active'
-              AND NOT EXISTS (SELECT 1 FROM job_countries c WHERE c.job_id = j.id)
-            ORDER BY j.id
-            LIMIT %s
-            """,
-            (after, COUNTRY_BATCH),
-        )
-        rows = await cursor.fetchall()
-        if not rows:
-            return filled
-        after = rows[-1][0]
-        found = []
-        for job_id, source, raw in rows:
-            try:
-                posting = ADAPTERS[source].parse(raw)
-            except ValidationError:
-                continue
-            countries = posting_countries(posting.locations, posting.country_hints)
-            found += [(job_id, country) for country in countries]
-            filled += bool(countries)
-        async with conn.transaction(), conn.cursor() as cursor:
-            await cursor.executemany(
-                "INSERT INTO job_countries (job_id, country) VALUES (%s, %s)", found
+    filled = written = 0
+    for internships in (True, False):
+        after = 0
+        while written < max_rows:
+            cursor = await conn.execute(
+                """
+                SELECT j.id, s.source, s.raw FROM jobs j
+                JOIN LATERAL (
+                    SELECT source, raw FROM job_sources WHERE job_id = j.id ORDER BY id LIMIT 1
+                ) s ON true
+                WHERE j.id > %s AND j.status = 'active' AND j.is_internship = %s
+                  AND NOT EXISTS (SELECT 1 FROM job_countries c WHERE c.job_id = j.id)
+                ORDER BY j.id
+                LIMIT %s
+                """,
+                (after, internships, COUNTRY_BATCH),
             )
+            rows = await cursor.fetchall()
+            if not rows:
+                break
+            after = rows[-1][0]
+            found = []
+            for job_id, source, raw in rows:
+                try:
+                    posting = ADAPTERS[source].parse(raw)
+                except ValidationError:
+                    continue
+                countries = posting_countries(posting.locations, posting.country_hints)
+                found += [(job_id, country) for country in countries]
+                filled += bool(countries)
+            async with conn.transaction(), conn.cursor() as cursor:
+                await cursor.executemany(
+                    "INSERT INTO job_countries (job_id, country) VALUES (%s, %s)", found
+                )
+            written += len(found)
+    return filled
 
 
 def _is_retryable(error: Exception) -> bool:

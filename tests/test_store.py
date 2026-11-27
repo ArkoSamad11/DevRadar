@@ -248,3 +248,19 @@ async def test_countries_are_stored_and_backfilled_for_older_postings(
         assert await fill_missing_countries(conn) == 2
         assert await fill_missing_countries(conn) == 0
     assert query(migrated_db, stored) == expected
+
+
+async def test_backfill_does_internships_first(migrated_db, board):
+    await store(
+        migrated_db,
+        board,
+        [
+            posting("1", title="Software Engineer", **greenhouse_raw("1", ("London",))),
+            posting("2", **greenhouse_raw("2", ("Toronto, ON",))),
+        ],
+    )
+    with psycopg.connect(migrated_db) as conn:
+        conn.execute("DELETE FROM job_countries")
+    async with await psycopg.AsyncConnection.connect(migrated_db) as conn:
+        await fill_missing_countries(conn, max_rows=1)
+    assert query(migrated_db, "SELECT country FROM job_countries") == [("CA",)]
