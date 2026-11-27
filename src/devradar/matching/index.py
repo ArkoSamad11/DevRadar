@@ -7,7 +7,7 @@ import numpy as np
 from psycopg_pool import AsyncConnectionPool
 
 from devradar.ingestion.classify import categorize
-from devradar.matching.eligibility import Degree, is_senior, terms_named
+from devradar.matching.eligibility import Degree, admits_term, is_senior, terms_named
 from devradar.matching.requirements import Requirements, read_requirements
 from devradar.roles.model import RoleModel
 from devradar.roles.text import ROLES
@@ -67,6 +67,9 @@ class PostingIndex:
             minlength=len(self.job_ids),
         )
         eligible = self._eligible(degree, term, graduation_year, allowed_ids)
+        eligible &= np.array(
+            [r.admits_school(resume) for r in self.requirements], dtype=bool
+        )
         if not eligible.any():
             return []
 
@@ -92,7 +95,7 @@ class PostingIndex:
         if degree:
             eligible &= np.array([r.admits_degree(degree) for r in self.requirements])
         if term:
-            eligible &= np.array([not named or term in named for named in self.terms])
+            eligible &= np.array([admits_term(named, term) for named in self.terms])
         if graduation_year:
             eligible &= np.array(
                 [r.admits_graduation(graduation_year) for r in self.requirements]

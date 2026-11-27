@@ -245,6 +245,7 @@ async def describe_matches(
                 similar_postings=match.duplicate_ids,
                 degrees=[d for d in Degree if d in match.requirements.degrees],
                 graduation=match.requirements.graduation,
+                school=match.requirements.school,
             )
         )
     return described

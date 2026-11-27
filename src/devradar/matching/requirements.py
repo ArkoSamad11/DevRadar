@@ -63,6 +63,19 @@ _LEVEL = re.compile(
     r"(?i:ph\.?d|doctora|master|bachelor|grad|degree|mba|freshm|sophomore|junior|senior|penultimate"
     r"|(?:four|4)[ -]year|\b[bm]\.?s)"
 )
+_ONE_SCHOOL = re.compile(
+    r"\b(?:(?i:only|exclusively) (?i:open|available)|(?i:open|available) (?i:only|exclusively)) (?i:to)\b"
+    r"[^.]{0,120}?\b(?P<school>University of [A-Z][\w-]+(?: [A-Z][\w-]+)?"
+    r"|(?:[A-Z][\w&'-]+ ){1,4}(?:University|College|Institute of Technology|Institute))"
+)
+_GENERIC_SCHOOL_WORDS = {
+    "university",
+    "college",
+    "institute",
+    "of",
+    "technology",
+    "the",
+}
 _POSTDOC = re.compile(r"\bpost-?\s?doc", re.IGNORECASE)
 
 _MONTHS = {
@@ -142,10 +155,22 @@ class Requirements:
 
     degrees: frozenset[Degree]
     graduation: GraduationWindow | None
+    school: str | None = None
 
     def admits_degree(self, degree: Degree) -> bool:
         held = {degree, Degree.masters} if degree is Degree.mba else {degree}
         return not self.degrees or not self.degrees.isdisjoint(held)
+
+    def admits_school(self, resume: str) -> bool:
+        """A posting open to one school's students needs a resume that names that school."""
+        if self.school is None:
+            return True
+        words = [
+            w for w in self.school.split() if w.lower() not in _GENERIC_SCHOOL_WORDS
+        ]
+        return all(
+            re.search(rf"\b{re.escape(w)}\b", resume, re.IGNORECASE) for w in words
+        )
 
     def admits_graduation(self, year: int) -> bool:
         # Without a month, any month of the year that fits is enough.
@@ -169,8 +194,11 @@ def normalize(text: str) -> str:
 def read_requirements(title: str, description: str) -> Requirements:
     sentences = _SENTENCE_END.split(normalize(description))
     degrees, graduation = _accepted_degrees(title, sentences), _graduation(sentences)
-    # Most postings say nothing; sharing one object keeps the full-time index small.
-    return Requirements(degrees, graduation) if degrees or graduation else NONE_STATED
+    school = match["school"] if (match := _ONE_SCHOOL.search(description)) else None
+    if not (degrees or graduation or school):
+        # Most postings say nothing; sharing one object keeps the full-time index small.
+        return NONE_STATED
+    return Requirements(degrees, graduation, school)
 
 
 def _accepted_degrees(title: str, sentences: list[str]) -> frozenset[Degree]:

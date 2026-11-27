@@ -149,8 +149,8 @@ function monthName(iso) {
   return new Date(year, month - 1).toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
 
-function requirements({ degrees, graduation }) {
-  const parts = [];
+function requirements({ degrees, graduation, school }) {
+  const parts = school ? [`${school} students only`] : [];
   if (degrees.length) parts.push(`${degrees.map((d) => DEGREE_NAMES[d]).join(", ")} students`);
   if (graduation) {
     const { earliest, latest } = graduation;

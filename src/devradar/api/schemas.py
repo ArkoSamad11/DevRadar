@@ -140,6 +140,9 @@ class JobMatch(BaseModel):
     similar_postings: list[int]
     degrees: list[Degree] = Field(description="accepted degrees; empty if not stated")
     graduation: GraduationRange | None = Field(description="null if not stated")
+    school: str | None = Field(
+        description="the one school whose students may apply, if any"
+    )
 
 
 class MatchResponse(BaseModel):

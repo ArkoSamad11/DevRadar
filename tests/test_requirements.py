@@ -184,3 +184,37 @@ def test_a_graduation_year_is_admitted_if_any_month_fits():
     assert from_december.admits_graduation(
         2027
     ) and not from_december.admits_graduation(2026)
+
+
+@pytest.mark.parametrize(
+    "description, school",
+    [
+        (
+            "This position is open exclusively to current Northeastern University Co-Op students.",
+            "Northeastern University",
+        ),
+        (
+            (
+                "This internship is only open to students enrolled in the Master of Science in"
+                " Applied Computing (MScAC) program at the University of Toronto."
+            ),
+            "University of Toronto",
+        ),
+        ("Must be enrolled at an accredited college or university.", None),
+        ("This internship is only open to Malaysian nationals.", None),
+    ],
+)
+def test_one_school(description, school):
+    assert read_requirements("Intern", description).school == school
+
+
+def test_a_one_school_posting_needs_a_resume_naming_that_school():
+    posting = read_requirements(
+        "Co-op",
+        "This role is only open to students enrolled at Northeastern University.",
+    )
+    assert posting.admits_school("B.S. Computer Science, Northeastern University, 2028")
+    assert not posting.admits_school(
+        "B.S. Operations Research, Cornell University, 2029"
+    )
+    assert NONE_STATED.admits_school("anything")
